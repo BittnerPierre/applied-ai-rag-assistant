@@ -34,11 +34,11 @@ This project includes `Dockerfile` to run the app in Docker container. In order 
 
 To generate Image with `DOCKER_BUILDKIT`, follow below command
 
-```DOCKER_BUILDKIT=1 docker build --target=runtime . -t langchain-streamlit-agent:latest```
+```DOCKER_BUILDKIT=1 docker build --target=runtime . -t applied-ai-rag-assistant:latest```
 
 1. Run the docker container directly
 
-``docker run -d --name langchain-streamlit-agent -p 8051:8051 langchain-streamlit-agent:latest ``
+``docker run -d --name langchain-streamlit-agent -p 8051:8051 applied-ai-rag-assistant:latest ``
 
 2. Run the docker container using docker-compose (Recommended)
 
