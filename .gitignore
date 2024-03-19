@@ -6,6 +6,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+.streamlit/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
