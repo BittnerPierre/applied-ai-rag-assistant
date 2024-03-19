@@ -38,7 +38,7 @@ To generate Image with `DOCKER_BUILDKIT`, follow below command
 
 1. Run the docker container directly
 
-``docker run -d --name langchain-streamlit-agent -p 8051:8051 applied-ai-rag-assistant:latest ``
+``docker run -d --name applied-ai-rag-assistant -p 8051:8051 applied-ai-rag-assistant:latest ``
 
 2. Run the docker container using docker-compose (Recommended)
 
