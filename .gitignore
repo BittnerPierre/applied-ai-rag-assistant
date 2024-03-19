@@ -1,0 +1,37 @@
+.vs/
+.vscode/
+.idea/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+notebooks/
+
+# Environments
+.env
+.envrc
+.venv
+.venvs
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
+# C extensions
+*.so
+*.pkl
+*.bin
+
+# macOS display setting files
+.DS_Store
+
+secrets.toml
