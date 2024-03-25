@@ -97,52 +97,8 @@ def main():
 
             output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
 
-            # stream = client.chat.completions.create(
-            #     messages=[
-            #         {"role": m["role"], "content": m["content"]}
-            #         for m in st.session_state.messages
-            #     ],
-            #     model=st.session_state["openai_model"],
-            #     stream=True,
-            # )
-            # response = st.write_stream(stream)
             st.write(output)
             st.session_state.messages.append({"role": "assistant", "content": output})
-
-    # if "generated" not in st.session_state:
-    #     st.session_state["generated"] = []
-    #
-    # if "past" not in st.session_state:
-    #     st.session_state["past"] = []
-
-    # with st.form(key="form"):
-    #     user_input = st.text_input("You: ", "Hello, what do you want to know?", key="input")
-    #     submit_button_pressed = st.form_submit_button("Submit to Bot")
-    #
-    # if submit_button_pressed:
-    #
-    #     # result = chain({"question": user_input})
-    #     # output = f"Answer: {result['answer']}"      # \nSources: {result['sources']}
-    #
-    #     store: VectorStore = get_store(embeddings)
-    #
-    #     output = invoke(user_input, template, llm, chain_type, store, search_type, k, verbose)
-    #
-    #     st.session_state.past.append(user_input)
-    #     st.session_state.generated.append(output)
-    #
-    # if st.session_state["generated"]:
-    #
-    #     for i in range(len(st.session_state["generated"]) - 1, -1, -1):
-    #         with st.chat_message()
-    #             message(st.session_state["generated"][i], key=str(i))
-    #             message(st.session_state["past"][i], is_user=True, key=str(i) + "_user")
-
-        # requests_wrapper = RequestsWrapper(headers=headers)
-
-        # data = sp.pydantic_form(key="personne_morale_form", model_name=PersonneMorale)
-        # if data:
-        #    st.json(data.json())
 
 
 if __name__ == "__main__":
