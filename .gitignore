@@ -37,3 +37,4 @@ venv.bak/
 .DS_Store
 
 secrets.toml
+/data/chroma
