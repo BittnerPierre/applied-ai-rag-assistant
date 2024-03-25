@@ -1,30 +1,20 @@
-from json import JSONDecodeError
-
 import streamlit as st
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.output_parsers import PydanticOutputParser
 from langchain.schema.vectorstore import VectorStore
-from langchain.tools.base import ToolException
-from streamlit_chat import message
-from pydantic import BaseModel
-from typing import Optional
-import streamlit_pydantic as sp
-from langchain.globals import set_verbose
+from openai import OpenAI
+import os
+from utils.config_loader import load_config
 
-from langchain.chains import create_extraction_chain_pydantic, RetrievalQA
-from langchain.docstore.document import Document
+from utils.utilsrag import invoke
+from utils.utilsdoc import load_doc, load_store, get_store
+from utils.utilsllm import load_embeddings, load_model
 
-from langchain.chat_models import AzureChatOpenAI, ChatOpenAI
-from langchain.embeddings import AzureOpenAIEmbeddings
+from dotenv import load_dotenv, find_dotenv
 
-from langchain.agents import tool
+config = load_config()
 
-from utils import invoke
-from utils import load_doc, load_store
+app_name = config['DEFAULT']['APP_NAME']
+LLM_MODEL = config['LLM']['LLM_MODEL']
 
-from langchain.agents import AgentType, Tool, initialize_agent
-
-from src.entity.models.dilitrust import Enterprise, Societe
 
 __template__ = """Use the following pieces of context to answer the question at the end. 
    If you don't know the answer, just say that you don't know, don't try to make up an answer. 
@@ -35,92 +25,23 @@ __template__ = """Use the following pieces of context to answer the question at 
    Helpful Answer:"""
 
 
-_EXTRACTION_TEMPLATE = """Extract and save the relevant entities mentioned \
-in the following passage together with their properties.
-
-Only extract the properties mentioned in the 'information_extraction' function.
-
-If a property is not present and is not required in the function parameters, do not include it in the output.
-
-Passage:
-{input}"""
-
-# Pydantic data class
-class _PersonneMorale(BaseModel):
-    siren: Optional[str]
-    siren_formate: Optional[str]
-    date_immatriculation: Optional[str]
-    raison_sociale: Optional[str]
-    sigle: Optional[str]
-    adresse_siege: Optional[str]
-    activite: Optional[str]
-    forme_juridique: Optional[str]
-    capital_social: Optional[str]
-
-class _Mandataire(BaseModel):
-    nom: Optional[str]
-    prenom: Optional[str]
-    fonction: Optional[str]
-    nomination: Optional[str]
-    nationalite: Optional[str]
-    date_de_naissance: Optional[str]
-    lieu: Optional[str]
-    domicile_personnel: Optional[str]
-
-
-
-
-
-@tool
-def get_word_length(word: str) -> int:
-    """Returns the length of a word."""
-    return len(word)
-
-
-tools = [get_word_length]
-
-def load_model(model: str):
-    if st.secrets["OPENAI_API_TYPE"] == "azure":
-        llm = AzureChatOpenAI(
-            openai_api_version=st.secrets["AZURE_OPENAI_API_VERSION"],
-            azure_endpoint=st.secrets["AZURE_OPENAI_ENDPOINT"],
-            azure_deployment=st.secrets["AZURE_OPENAI_DEPLOYMENT"],
-            api_key=st.secrets["AZURE_OPENAI_API_KEY"],
-        )
-    else:
-        llm = ChatOpenAI(model_name=model, temperature=0)
-
-    return llm
-
-
-def load_embeddings(model: str):
-    if st.secrets["OPENAI_API_TYPE"] == "azure":
-        embeddings = AzureOpenAIEmbeddings(
-            azure_deployment=st.secrets["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"],
-            openai_api_version=st.secrets["AZURE_OPENAI_API_VERSION"],
-        )
-    else:
-        embeddings = OpenAIEmbeddings()
-
-    return embeddings
-
-
 def load_sidebar():
     with st.sidebar:
         st.header("Parameters")
-        st.sidebar.checkbox("Azure", st.secrets["OPENAI_API_TYPE"] == "azure", disabled=True)
+        st.sidebar.checkbox("Azure", LLM_MODEL == "azure", disabled=True)
 
 
 
 def main():
-    st.title("📄Personne Morale Extractor 🤗")
+
+    st.title("📄Chat with Doc 🤗")
+
     load_sidebar()
 
-
     # for openai only
-    model_name = st.sidebar.radio("Model", ["gpt-3.5-turbo-1106", "gpt-4-32k-0613", "gpt-4-1106-preview", "gpt-4-0613"],
-                             captions=["GPT 3.5 Turbo (16k;4k)", "GPT-4-32k (32k;4k?)", "GPT-4 Turbo (128k;4k)",
-                                       "GPT-4 (8k;4k?)"], index=1, disabled=st.secrets["OPENAI_API_TYPE"] == "azure")
+    model_name = st.sidebar.radio("Model", ["gpt-3.5-turbo", "gpt-4"],
+                                  captions=["GPT 3.5 Turbo", "GPT 4"],
+                                  index=1, disabled=LLM_MODEL == "azure")
 
     template = st.sidebar.text_area("Prompt", __template__)
 
@@ -136,222 +57,86 @@ def main():
 
     st.sidebar.subheader("Chain params")
     verbose = st.sidebar.checkbox("Verbose")
-    set_verbose(verbose)
-
-    option = st.radio("Look at", ["Extract KBIS","Chat with doc", "Extract Status", "Extract Agents"], index=None)  # , "Papper"
 
     # llm = load_model(model_name)
-    embeddings = load_embeddings(model_name)
+    embeddings = load_embeddings()
 
-    # upload a your pdf file
+    load_dotenv(find_dotenv())
+    # Set OpenAI API key from Streamlit secrets
+    openai_api_key = os.getenv('OPENAI_API_KEY')
 
-    if option is not None:
-        pdfs = st.file_uploader("Upload Doc", type='pdf', accept_multiple_files=True)
+    client = OpenAI(api_key=openai_api_key)
 
-        company_name = "ENGIE IT SA"
-        siren = 340793959
-        dt_code = 20213
+    # Set a default model
+    if "openai_model" not in st.session_state:
+        st.session_state["openai_model"] = model_name
 
-        company_name = st.text_input("Company name", company_name)
+    llm = load_model(model_name)
 
-        if (pdfs is not None) and (len(pdfs)):
-            docs = load_doc(pdfs)
-            if option == 'Extract KBIS':
-                llm = load_model(model_name)
+    st.header("Question Answering Assistant")
 
-                chain = create_extraction_chain_pydantic(pydantic_schema=Societe, llm=llm, verbose=verbose)
-                extracts = chain.run(docs)
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-                societe: Societe = extracts[0]
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-                st.header("Societe")
+    # Accept user input
+    if prompt := st.chat_input("What do you want to know?"):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        # Display user message in chat message container
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-                st.subheader("Entreprise")
-                sp.pydantic_output(societe.enterprise)
+        # Display assistant response in chat message container
+        with st.chat_message("assistant"):
+            store: VectorStore = get_store(embeddings)
 
-                st.subheader("Identifications")
-                sp.pydantic_output(societe.identification)
+            output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
 
-            elif option == 'Extract Status':
+            # stream = client.chat.completions.create(
+            #     messages=[
+            #         {"role": m["role"], "content": m["content"]}
+            #         for m in st.session_state.messages
+            #     ],
+            #     model=st.session_state["openai_model"],
+            #     stream=True,
+            # )
+            # response = st.write_stream(stream)
+            st.write(output)
+            st.session_state.messages.append({"role": "assistant", "content": output})
 
-                store = load_store(docs, embeddings)
+    # if "generated" not in st.session_state:
+    #     st.session_state["generated"] = []
+    #
+    # if "past" not in st.session_state:
+    #     st.session_state["past"] = []
 
-                user_input = "Extrait les informations sur les mandataires sociaux et personnes morales." \
-                             "\n\nLes caractéristiques d un mandataire social sont:" \
-                             "\n- nom: Optional[str]" \
-                             "\n- prénom: Optional[str]" \
-                             "\n- fonction: Optional[str]" \
-                             "\n- nomination: Optional[str]" \
-                             "\n- nationalité: Optional[str]" \
-                             "\n- date de naissance: Optional[str]" \
-                             "\n- lieu de naissance: Optional[str]" \
-                             "\n- domicile personnel: Optional[str]" \
-                             "\n\nLes caractéristiques d une personne morale sont:" \
-                             "\n- numéro siren formate: [str]" \
-                             "\n- date d immatriculation: [str]" \
-                             "\n- raison sociale: [str]" \
-                             "\n- sigle: Optionel[str]" \
-                             "\n- adresse_siege: Optional[str]" \
-                             "\n- activité: Optional[str]" \
-                             "\n- forme_juridique: Optional[str]" \
-                             "\n- capital_social: Optional[str]"
-
-                llm = load_model(model_name)
-
-                output = invoke(user_input, _EXTRACTION_TEMPLATE, llm, chain_type, store, search_type, k, verbose)
-
-                docs = [
-                    Document(
-                        page_content=split,
-                        metadata={"source": "Previous search"},
-                    )
-                    for split in output.split("\n\n")
-                ]
-
-                chain = create_extraction_chain_pydantic(pydantic_schema=Societe, llm=llm, verbose=verbose)
-                extracts = chain.run(docs)
-
-                if not extracts:
-                        st.text("No data retrieved.")
-
-                else:
-                    societe:Societe = extracts[0]
-
-                    st.header("Societe")
-
-                    st.subheader("Entreprise")
-                    sp.pydantic_output(societe.enterprise)
-
-                    st.subheader("Identification")
-                    sp.pydantic_output(societe.identification)
-
-            elif option == 'Chat with doc':
-
-                llm = load_model(model_name)
-
-                st.header("Question Answering Assistant")
-
-                if "generated" not in st.session_state:
-                    st.session_state["generated"] = []
-
-                if "past" not in st.session_state:
-                    st.session_state["past"] = []
-
-                with st.form(key="form"):
-                    user_input = st.text_input("You: ", "Hello, what do you want to know?", key="input")
-                    submit_button_pressed = st.form_submit_button("Submit to Bot")
-
-                if submit_button_pressed:
-
-                    # result = chain({"question": user_input})
-                    # output = f"Answer: {result['answer']}"      # \nSources: {result['sources']}
-
-                    store: VectorStore = load_store(docs, embeddings)
-
-                    output = invoke(user_input, template, llm, chain_type, store, search_type, k, verbose)
-
-                    st.session_state.past.append(user_input)
-                    st.session_state.generated.append(output)
-
-                if st.session_state["generated"]:
-
-                    for i in range(len(st.session_state["generated"]) - 1, -1, -1):
-                        message(st.session_state["generated"][i], key=str(i))
-                        message(st.session_state["past"][i], is_user=True, key=str(i) + "_user")
-
-            elif option == 'Extract Agents':
-                store: VectorStore = load_store(docs, embeddings)
-
-                retriever = store.as_retriever(search_type=search_type, search_kwargs={'k': k})
-
-                llm1 = load_model(model_name)
-
-                corporate = RetrievalQA.from_chain_type(
-                    llm=llm1, chain_type=chain_type, retriever=retriever
-                )
-
-                def _handle_error(error: ToolException) -> str:
-                    if error == JSONDecodeError:
-                        return "Reformat in JSON and try again"
-                    elif error.args[0].startswith("Too many arguments to single-input tool"):
-                        return "Format in a SINGLE STRING. DO NOT USE MULTI-ARGUMENTS INPUT."
-                    return (
-                            "The following errors occurred during tool execution:"
-                            + error.args[0]
-                            + "Please try another tool.")
-
-                tools = [
-                    Tool(
-                        name="Corporate QA System",
-                        func=corporate.run,
-                        description="Useful when you need to answer questions about"
-                                    " company, corporate, representative and shareholder. "
-                                    "DO NOT USE MULTI-ARGUMENTS INPUT.",
-                        handle_tool_error=_handle_error,
-                    ),
-                    # get_dilitrust_by_dt_code,
-                    # get_dilitrust_by_usual_name,
-                    # get_entreprise_by_siren
-                ]
-
-                llm3 = load_model(model_name)
-                agent = initialize_agent(
-                    tools, llm3, agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=True
-                )
-
-                pydantic_parser = PydanticOutputParser(pydantic_object=Enterprise)
-                format_instructions = pydantic_parser.get_format_instructions()
-                # "\n\n{format_instructions}"
-
-                fields_mandataire = f"""\nCharacteristics of a corporate officer are last name, first name, "
-                                         " function, nomination ,"
-                                         " nationality, date of birth, "
-                                         " birth place, personal home."""
-                fields_entity = f"""\nCharacteristics of a legal entity are "
-                                         " siren number or any legal identifier, "
-                                         " registration date, company name, legal name"
-                                         " acronym, headquarter address, "
-                                         " activity, legal form, capital social."""
-
-                # "\n\nFirst identify the legal entity mainly concerned with Corporate QA system. "
-                # "\n\nNext, identify the legal entity mainly concerned by the context. "
-                # with SIREN {siren}
-                # and dt_code {dt_code}
-                data = agent.run(
-                    f"""Your goal is to extract legal information for a corporate which usual name is {company_name}. " 
-                                                     "\n\nTo do so, you'll have to identify all entities that are related to the corporate "
-                                                     " such as representatives, lawyers, shareholders, auditors with Corporate QA system."
-                                                     "\n\nNext you'll have to collect characteristics about each entities one by one."
-                                                     "\n\nPack all collected information from each entities into a single "
-                                                     " text document starting with the main legal entity. 
-                                                     "\nDo not make up information. Use only data provided in your context.
-                                                     "\nDo not use smart code to retrieve data with tools."
-                                                     "\nIt is ok if some data is missing.""")
-                # print(data)
-                # "IF fields are still missing, you can look at pappers with siren to complete missing data."
-                # "While doing so, identify the fields that mismatch from previous retrieval and list them."
-                # "Finally, you can use dilitrust to complete missing data."
-                # "Again while doing so, identify the fields that mismatch from previous retrieval and list them."
-
-                print(data)
-
-                # societe = Enterprise(** json.loads(data))
-                # print(societe)
-
-                extract_chain = create_extraction_chain_pydantic(pydantic_schema=Enterprise, llm=llm1, verbose=verbose)
-                extracts = extract_chain.run(data)
-                corporate = extracts[0]
-
-                st.header("Société")
-
-                st.subheader("Identification")
-                sp.pydantic_output(corporate.identification)
-
-                st.subheader("Données Générales")
-                sp.pydantic_output(corporate.enterprise)
-
-                st.subheader("Mandataires")
-                sp.pydantic_output(corporate.mandataires)
+    # with st.form(key="form"):
+    #     user_input = st.text_input("You: ", "Hello, what do you want to know?", key="input")
+    #     submit_button_pressed = st.form_submit_button("Submit to Bot")
+    #
+    # if submit_button_pressed:
+    #
+    #     # result = chain({"question": user_input})
+    #     # output = f"Answer: {result['answer']}"      # \nSources: {result['sources']}
+    #
+    #     store: VectorStore = get_store(embeddings)
+    #
+    #     output = invoke(user_input, template, llm, chain_type, store, search_type, k, verbose)
+    #
+    #     st.session_state.past.append(user_input)
+    #     st.session_state.generated.append(output)
+    #
+    # if st.session_state["generated"]:
+    #
+    #     for i in range(len(st.session_state["generated"]) - 1, -1, -1):
+    #         with st.chat_message()
+    #             message(st.session_state["generated"][i], key=str(i))
+    #             message(st.session_state["past"][i], is_user=True, key=str(i) + "_user")
 
         # requests_wrapper = RequestsWrapper(headers=headers)
 

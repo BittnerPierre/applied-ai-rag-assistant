@@ -19,9 +19,7 @@ def main():
 
     st.markdown(
         """
-        Enhance data accuracy and consistency for Engie entities by automating, encoding and updates via GenIA, centralized in DiliTrust, a single source of truth for legal entity data. ​
-
-        Search specific legal information on entities in full autonomy, using natural language.
+        LLM+RAG Assistant for Application Architecture.
     """
     )
     st.write(sys.version)

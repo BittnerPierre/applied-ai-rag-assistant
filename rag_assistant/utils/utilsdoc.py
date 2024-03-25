@@ -25,6 +25,18 @@ from utils.config_loader import load_config
 config = load_config()
 
 
+def extract_unique_name(collection_name : str, key : str):
+    store = get_store(collection_name=collection_name)
+    collection = store._collection
+    metadatas = collection.get()['metadatas']
+
+    unique_names = set()
+    for item in metadatas:
+        if item is not None and key in item:
+            unique_names.add(item[key])
+    return unique_names
+
+
 def split_documents(documents: list[Document]):
     # Initialize text splitter
     text_splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=24)

@@ -11,26 +11,26 @@ st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 
 
 def main():
-    st.title(f"""📄 {app_name} Load vDB 🤗""")
+    st.title(f"""📄 {app_name} : Chargement du vectorstore 🤗""")
 
     # with st.form("Upload File"):
-    company_name = st.text_input("Nom Usuel")
+    topic_name = st.text_input("Sujet / Thème du document (ex: AWS, Serverless, Architecture, Sécurité, ...)")
 
-    file_type = st.radio("File Type", ["KBIS", "Status"], index=None)
+    file_type = st.radio("Type du document", ["Whitepaper", "Guide", "Tutorial", "FAQ"], index=None)
 
     # dt_code = st.text_input("DT Code")
     # siren = st.text_input("SIREN")
 
-    pdfs = st.file_uploader("Upload Doc", type=['pdf', 'txt'], accept_multiple_files=True)
+    pdfs = st.file_uploader("Document(s) à transmettre", type=['pdf', 'txt', 'md'], accept_multiple_files=True)
 
     disabled = True
     print(file_type)
-    print(company_name)
-    if (file_type is not None) and (company_name is not None) and (pdfs is not None) and (len(pdfs)):
+    print(topic_name)
+    if (file_type is not None) and (topic_name is not None) and (pdfs is not None) and (len(pdfs)):
         disabled = False
 
     if st.button("Transmettre", disabled=disabled):
-        metadata = {"type": file_type, "company_name": company_name}
+        metadata = {"type": file_type, "topic_name": topic_name}
         docs = load_doc(pdfs, metadata)
         store = load_store(docs, collection_name=collection_name)
         # print(docs)

@@ -2,9 +2,8 @@ import streamlit as st
 
 import json
 
-from utils.utilsdoc import get_store, empty_store
+from utils.utilsdoc import get_store, empty_store, extract_unique_name
 from utils.config_loader import load_config
-from tools.vectorstore import extract_unique_name
 
 
 config = load_config()
@@ -17,7 +16,7 @@ st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 def main():
     st.title(f"""📄 {app_name} View vDB 🤗""")
 
-    collection_name = st.selectbox("Collection", ["Default", "JSON"])
+    collection_name = st.selectbox("Collection", ["Default"])
 
     store = get_store(collection_name=collection_name)
     collection = store._collection
@@ -30,9 +29,9 @@ def main():
     for name in unique_filenames:
         st.markdown(f"""- {name}""")
 
-    st.subheader("Company loaded")
-    unique_company_names = extract_unique_name(collection_name, 'company_name')
-    for name in unique_company_names:
+    st.subheader("Topic loaded")
+    unique_topic_names = extract_unique_name(collection_name, 'topic_name')
+    for name in unique_topic_names:
         st.markdown(f"""- {name}""")
 
     st.subheader("Document Type")
@@ -42,9 +41,9 @@ def main():
 
     with st.form("Search in vDB"):
         search = st.text_input("Text")
-        company_name = st.selectbox("Company Name", unique_company_names, index=None)
+        topic_name = st.selectbox("Topic", unique_topic_names, index=None)
         filename = st.selectbox("File Name", unique_filenames, index=None)
-        filetype = st.selectbox("File type", ("KBIS", "Status"), index=None)
+        filetype = st.selectbox("File type", ("Whitepaper", "Guide", "Tutorial", "FAQ"), index=None)
         document_type = st.selectbox("Document Type", unique_document_types, index=None)
 
         filter = {}
@@ -52,8 +51,8 @@ def main():
             filter["filename"] = filename
         if document_type:
             filter["document_type"] = document_type
-        if company_name:
-            filter["company_name"] = company_name
+        if topic_name:
+            filter["topic_name"] = topic_name
         # if filetype:
         #    filter["type"] = filetype
 
@@ -70,9 +69,9 @@ def main():
             collection.delete(where={"filename": f"{file_name_to_delete}"})
 
     with col2:
-        company_name_to_delete = st.selectbox("Select Company Name", unique_company_names, index=None)
-        if st.button("Delete Company Data"):
-            collection.delete(where={"company_name": f"{company_name_to_delete}"})
+        topic_name_to_delete = st.selectbox("Select Topic", unique_topic_names, index=None)
+        if st.button("Delete Topic Data"):
+            collection.delete(where={"topic_name": f"{topic_name_to_delete}"})
 
     if st.button("Delete collection"):
         empty_store(collection_name=collection_name)
