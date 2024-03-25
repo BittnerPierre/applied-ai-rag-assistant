@@ -36,9 +36,12 @@ venv.bak/
 # macOS display setting files
 .DS_Store
 
-secrets.toml
-
 # Terraform
 terraform/*/.terraform/**
 terraform/*/.terraform*
 terraform/*/terraform.*
+
+
+secrets.toml
+/data/chroma
+
