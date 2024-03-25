@@ -124,7 +124,7 @@ with st.chat_message("assistant"):
     st.write("How can I help you?")
 
 for i, question in enumerate(suggested_questions, start=1):
-    if st.button(f"Suggested Question {i}: {question}", key=f"suggested_question_{i}"):
+    if st.button(f"{question}", key=f"suggested_question_{i}"):
         # Perform action upon clicking the button (e.g., send the question to the chatbot)
         user_query = question
 
