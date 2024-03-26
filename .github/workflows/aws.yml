@@ -32,7 +32,7 @@ on:
 
 env:
   AWS_REGION: eu-west-1                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: 441525731509.dkr.ecr.eu-west-1.amazonaws.com           # set this to your Amazon ECR repository name
+  ECR_REPOSITORY: ai_assistant           # set this to your Amazon ECR repository name
   ECS_SERVICE: ai_assistant-service-iac-https                 # set this to your Amazon ECS service name
   ECS_CLUSTER: ai_assistantFargate                 # set this to your Amazon ECS cluster name
   ECS_TASK_DEFINITION: ai_assistant-taskdef-iac-https # set this to the path to your Amazon ECS task definition
@@ -67,7 +67,7 @@ jobs:
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REGISTRY: 441525731509.dkr.ecr.eu-west-1.amazonaws.com
         IMAGE_TAG: latest
       run: |
         # Build a docker container and
