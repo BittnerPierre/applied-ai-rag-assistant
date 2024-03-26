@@ -23,6 +23,7 @@ RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 FROM python:3.11-slim as runtime
 
 COPY data data
+COPY conf conf
 
 ENV VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
