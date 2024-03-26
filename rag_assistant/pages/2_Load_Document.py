@@ -13,7 +13,6 @@ st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 
 
 pdf_files_paths = [
-    "data/sources/pdf/aws/caf/aws-cloud-adoption-framework_fr-FR.pdf",
     "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
     "data/sources/pdf/aws/waf/AWS_Well-Architected_Framework.pdf",
     "data/sources/pdf/Questionnaire d'évaluation des risques applicatifs pour le Cloud Public.pdf",
