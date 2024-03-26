@@ -32,4 +32,4 @@ COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
 COPY ./rag_assistant ./rag_assistant
 
-CMD ["streamlit", "run", "rag_assistant/chat_with_documents.py", "--server.port", "80"]
+CMD ["streamlit", "run", "rag_assistant/Hello.py", "--server.port", "80"]

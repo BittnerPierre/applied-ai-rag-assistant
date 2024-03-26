@@ -21,15 +21,15 @@ st.title("Finaxys: Chat with Documents")
 
 # Define paths for PDF files
 pdf_files_paths = [
-    # "data/sources/pdf/arxiv/2210.01241.pdf",
-    # "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
     "data/sources/pdf/aws/waf/AWS_Well-Architected_Framework.pdf",
     "data/sources/pdf/Questionnaire d'évaluation des risques applicatifs pour le Cloud Public.pdf",
-    # "data/sources/pdf/owasp/LLM_AI_Security_and_Governance_Checklist-v1_FR.pdf",
     "data/sources/pdf/enisa/Cloud Security Guide for SMEs.pdf",
     "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
     # Add more paths as needed
 ]
+# "data/sources/pdf/owasp/LLM_AI_Security_and_Governance_Checklist-v1_FR.pdf",
+# "data/sources/pdf/arxiv/2210.01241.pdf",
+# "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
 
 __template2__ = """You are an assistant designed to guide users through a structured risk assessment questionnaire for cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -86,7 +86,7 @@ def configure_retriever(pdf_files_paths):
     )
 
     # Define retriever
-    retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 2, "fetch_k": 4})
+    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
 
     return retriever
 

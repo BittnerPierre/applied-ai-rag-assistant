@@ -25,7 +25,7 @@ $ pre-commit install
 
 ```shell
 # Run mrkl_demo.py or another app the same way
-$ streamlit run streamlit_agent/chat_with_documents.py
+$ streamlit run streamlit_agent/0_Chat_with_Docs.py
 ```
 
 # Running with Docker (OLD)
