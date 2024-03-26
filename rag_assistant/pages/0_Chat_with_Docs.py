@@ -12,6 +12,11 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from dotenv import load_dotenv, find_dotenv
+from utils.utilsdoc import get_store
+from utils.config_loader import load_config
+
+config = load_config()
+collection_name = config['VECTORDB']['collection_name']
 
 st.set_page_config(page_title="Finaxys: Chat with Documents", page_icon="🦜")
 st.title("Finaxys: Chat with Documents")
@@ -31,10 +36,12 @@ pdf_files_paths = [
 # "data/sources/pdf/arxiv/2210.01241.pdf",
 # "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
 
-__template2__ = """You are an assistant designed to guide users through a structured risk assessment questionnaire for cloud deployment. 
+__template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
      including security, compliance, availability, access methods, data storage, processing, performance efficiency,
       cost optimization, and operational excellence.
+      
+    You will assist user to answer to the questionnaire solely based on the information that will be provided to you.
 
     For each question, you are to follow the "Chain of Thought" process. This means that for each user's response, you will:
 
@@ -58,34 +65,39 @@ __template2__ = """You are an assistant designed to guide users through a struct
     8. After the final question, summarize the user's choices and their implications for cloud architecture.
     9. Offer a brief closing statement that reassures the user of the assistance provided and the readiness of their cloud deployment strategy.
 
-    Keep the interactions focused on architectural decisions without diverting to other unrelated topics. 
+    Keep the interactions focused on architectural decisions without diverting to other unrelated topics.
+    Be concise in your answer with a professional tone. 
     You are not to perform tasks outside the scope of the questionnaire, 
     such as executing code or accessing external databases. 
-    Your guidance should be solely based on the information provided by the user in the context of the questionnaire."""
+    Your guidance should be solely based on the information provided by the user in the context of the questionnaire.
+    
+    To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
 
 @st.cache_resource(ttl="1h")
 def configure_retriever(pdf_files_paths):
     # Read documents
-    docs = []
-    for file_path in pdf_files_paths:
-        loader = PyPDFLoader(file_path)
-        docs.extend(loader.load())
-
-    # Split documents
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-    splits = text_splitter.split_documents(docs)
-
-    # Create embeddings and store in vectordb
-    embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    persist_directory = "data/chroma/"
-    vectordb = Chroma.from_documents(
-        documents=splits,
-        embedding=embedding,
-        persist_directory=persist_directory
-    )
+    # docs = []
+    # for file_path in pdf_files_paths:
+    #     loader = PyPDFLoader(file_path)
+    #     docs.extend(loader.load())
+    #
+    # # Split documents
+    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+    # splits = text_splitter.split_documents(docs)
+    #
+    # # Create embeddings and store in vectordb
+    # embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    # persist_directory = "data/chroma/"
+    # vectordb = Chroma.from_documents(
+    #     documents=splits,
+    #     embedding=embedding,
+    #     persist_directory=persist_directory
+    # )
 
     # Define retriever
+    vectordb = get_store()
+
     retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
 
     return retriever
@@ -128,8 +140,6 @@ class PrintRetrievalHandler(BaseCallbackHandler):
             self.status.write(f"**Document {idx} from {source}**")
             self.status.markdown(doc.page_content)
         self.status.update(state="complete")
-
-
 
 # Configure the retriever with PDF files
 retriever = configure_retriever(pdf_files_paths)
@@ -203,6 +213,8 @@ with col2:
 #             stream_handler = StreamHandler(st.empty())
 #             response = qa_chain.run(user_query, callbacks=[stream_handler])
 
+
+
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
 for msg in msgs.messages:
@@ -211,13 +223,12 @@ for msg in msgs.messages:
 if "user_query" in st.session_state:
     user_query = st.session_state.user_query
     st.session_state.pop("user_query")  # Clear the session state
-    # st.write(f"**You:** {user_query}")  # Display user query
     st.chat_message("user").write(user_query)
 
     with st.chat_message("Assistant"):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
-        response = qa_chain.run(user_query, callbacks=[stream_handler])
+        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
 
 #Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
