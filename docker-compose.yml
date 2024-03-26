@@ -3,7 +3,7 @@ services:
   langchain-streamlit-agent:
     image: applied-ai-rag-assistant:latest
     build: ./app
-    command: streamlit run rag_assistant/chat_with_documents.py --server.port 8051
+    command: streamlit run rag_assistant/Hello.py --server.port 8051
     volumes:
       - ./rag_assistant/:/app/rag_assistant
     ports:

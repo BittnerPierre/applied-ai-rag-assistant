@@ -9,11 +9,8 @@ from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chains import ConversationalRetrievalChain
-from langchain.vectorstores import DocArrayInMemorySearch
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-#from langchain.vectorstores import Chroma
 from langchain_community.vectorstores import Chroma
-from langchain.embeddings.openai import OpenAIEmbeddings
 from dotenv import load_dotenv, find_dotenv
 
 st.set_page_config(page_title="Finaxys: Chat with Documents", page_icon="🦜")
@@ -24,15 +21,15 @@ st.title("Finaxys: Chat with Documents")
 
 # Define paths for PDF files
 pdf_files_paths = [
-    # "data/sources/pdf/arxiv/2210.01241.pdf",
-    # "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
     "data/sources/pdf/aws/waf/AWS_Well-Architected_Framework.pdf",
     "data/sources/pdf/Questionnaire d'évaluation des risques applicatifs pour le Cloud Public.pdf",
-    # "data/sources/pdf/owasp/LLM_AI_Security_and_Governance_Checklist-v1_FR.pdf",
     "data/sources/pdf/enisa/Cloud Security Guide for SMEs.pdf",
     "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
     # Add more paths as needed
 ]
+# "data/sources/pdf/owasp/LLM_AI_Security_and_Governance_Checklist-v1_FR.pdf",
+# "data/sources/pdf/arxiv/2210.01241.pdf",
+# "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
 
 __template2__ = """You are an assistant designed to guide users through a structured risk assessment questionnaire for cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -89,7 +86,7 @@ def configure_retriever(pdf_files_paths):
     )
 
     # Define retriever
-    retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 2, "fetch_k": 4})
+    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
 
     return retriever
 
@@ -119,16 +116,19 @@ class StreamHandler(BaseCallbackHandler):
 # Define the callback handler for printing retrieval information
 class PrintRetrievalHandler(BaseCallbackHandler):
     def __init__(self, container):
-        self.container = container
+        self.status = container.status("**Context Retrieval**")
 
     def on_retriever_start(self, serialized: dict, query: str, **kwargs):
-        self.container.write(f"**Question:** {query}")
+        self.status.write(f"**Question:** {query}")
+        self.status.update(label=f"**Context Retrieval:** {query}")
 
     def on_retriever_end(self, documents, **kwargs):
         for idx, doc in enumerate(documents):
             source = os.path.basename(doc.metadata["source"])
-            self.container.write(f"**Document {idx} from {source}**")
-            self.container.markdown(doc.page_content)
+            self.status.write(f"**Document {idx} from {source}**")
+            self.status.markdown(doc.page_content)
+        self.status.update(state="complete")
+
 
 
 # Configure the retriever with PDF files
@@ -170,20 +170,56 @@ suggested_questions = [
 with st.chat_message("assistant"):
     st.write("Comment puis-je vous aider?")
 
-for i, question in enumerate(suggested_questions, start=1):
-    if st.button(f"{question}", key=f"suggested_question_{i}"):
-        # Perform action upon clicking the button (e.g., send the question to the chatbot)
-        user_query = question
+# Display suggested questions in a 2x2 table
+col1, col2 = st.columns(2)
+with col1:
+    if st.button(f"{suggested_questions[0]}"):
+        st.session_state.user_query = suggested_questions[0]  # Set session state with the user query
+        # break # Exit the loop after setting the user query
 
-        with st.chat_message("assistant"):
-            stream_handler = StreamHandler(st.empty())
-            response = qa_chain.run(user_query, callbacks=[stream_handler])
+# for suggested_question in suggested_questions:
+# if st.button(suggested_question):
+# st.session_state.user_query = suggested_question  # Set session state with the user query
+# break  # Exit the loop after setting the user query
+with col2:
+    if st.button(f"{suggested_questions[1]}"):
+        st.session_state.user_query = suggested_questions[1]  # Set session state with the user query
+        # break # Exit the loop after setting the user query
+with col1:
+    if st.button(f"{suggested_questions[2]}"):
+        st.session_state.user_query = suggested_questions[2]  # Set session state with the user query
+        # break # Exit the loop after setting the user query
+with col2:
+    if st.button(f"{suggested_questions[3]}"):
+        st.session_state.user_query = suggested_questions[3]  # Set session state with the user query
+        # break # Exit the loop after setting the user query
+
+# for i, question in enumerate(suggested_questions, start=1):
+#     if st.button(f"{question}", key=f"suggested_question_{i}"):
+#         # Perform action upon clicking the button (e.g., send the question to the chatbot)
+#         user_query = question
+#
+#         with st.chat_message("assistant"):
+#             stream_handler = StreamHandler(st.empty())
+#             response = qa_chain.run(user_query, callbacks=[stream_handler])
 
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
 for msg in msgs.messages:
     st.chat_message(avatars[msg.type]).write(msg.content)
 
+if "user_query" in st.session_state:
+    user_query = st.session_state.user_query
+    st.session_state.pop("user_query")  # Clear the session state
+    # st.write(f"**You:** {user_query}")  # Display user query
+    st.chat_message("user").write(user_query)
+
+    with st.chat_message("Assistant"):
+        retrieval_handler = PrintRetrievalHandler(st.container())
+        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
+        response = qa_chain.run(user_query, callbacks=[stream_handler])
+
+#Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
     st.chat_message("user").write(user_query)
 
