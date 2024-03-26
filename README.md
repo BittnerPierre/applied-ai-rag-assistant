@@ -50,12 +50,12 @@ Edit the Command in `docker-compose` with target streamlit app
 
 Build the image:
 ```sh
-docker build -t ai-assistant .
+docker build -t ai_assistant .
 ```
 
 Then run a container from the image we just created :
 ```sh
-docker run -p 80:80 -e OPENAI_API_KEY="secret_value" ai-assistant
+docker run -p 80:80 -e OPENAI_API_KEY="secret_value" ai_assistant
 ```
 Replace secret_value with your openai key. 
 
@@ -68,12 +68,12 @@ Install Docker : https://docs.docker.com/engine/install/
 
 Build and push the Docker image on the AWS Elastic Container Registry (ECR) with AWS CLI:
 ```sh
-docker build -t ai-assistant .
+docker build -t ai_assistant .
 aws configure set aws_access_key_id "access-key"
 aws configure set aws_secret_access_key "secret-access-key"
 aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 441525731509.dkr.ecr.eu-west-1.amazonaws.com
-docker tag ai-assistant:latest 441525731509.dkr.ecr.eu-west-1.amazonaws.com/ai-assistant:latest
-docker push 441525731509.dkr.ecr.eu-west-1.amazonaws.com/ai-assistant:latest
+docker tag ai_assistant:latest 441525731509.dkr.ecr.eu-west-1.amazonaws.com/ai_assistant:latest
+docker push 441525731509.dkr.ecr.eu-west-1.amazonaws.com/ai_assistant:latest
 ```
 Replace access-key and secret-access-key with valid AWS credentials that will be used to push to the ECR. The AWS user must have the correct rights to push image on the ECR.
 
@@ -99,6 +99,3 @@ Select your running service in the services list
 Click on Update.
 Check Force new Deployment, and click on Update.
 The latest version of the image will be deployed with the new service.
-
-Once the ECS service is running, you can find the link to access it in the "DNS Name" section or this page :
-https://eu-west-1.console.aws.amazon.com/ec2/home?region=eu-west-1#LoadBalancer:loadBalancerArn=arn:aws:elasticloadbalancing:eu-west-1:441525731509:loadbalancer/net/dilitrust-nlb-tf/8e3ffc916e721614;tab=listeners

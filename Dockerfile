@@ -1,7 +1,8 @@
 # The builder image, used to build the virtual environment
-FROM python:3.11-buster as builder
+FROM python:3.11-slim as builder
 
 RUN apt-get update && apt-get install -y git
+RUN apt-get install build-essential -y
 
 RUN pip install poetry==1.4.2
 
@@ -15,10 +16,13 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
 
+RUN poetry add pysqlite3-binary
 RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
 # The runtime image, used to just run the code provided its virtual environment
-FROM python:3.11-slim-buster as runtime
+FROM python:3.11-slim as runtime
+
+COPY data data
 
 ENV VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
@@ -26,6 +30,5 @@ ENV VIRTUAL_ENV=/app/.venv \
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
 COPY ./rag_assistant ./rag_assistant
-
 
 CMD ["streamlit", "run", "rag_assistant/chat_with_documents.py", "--server.port", "80"]
