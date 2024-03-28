@@ -32,7 +32,7 @@ hnswlib = "0.7.0" # Must have "0.7.0"
 chromadb  = "0.4.3" # Must have "0.4.3"
 PyPDF2 = ">=3.0.1"
 faiss-cpu = ">=1.8.0"
-
+pysqlite3-binary = "^0.5.2.post3"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
