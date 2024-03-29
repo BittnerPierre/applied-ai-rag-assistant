@@ -45,3 +45,10 @@ terraform/*/terraform.*
 secrets.toml
 /data/chroma
 
+/data/chroma2
+/data/UBER
+default.sqlite
+/merging_index
+/sentence_index
+/storage/AI
+/storage

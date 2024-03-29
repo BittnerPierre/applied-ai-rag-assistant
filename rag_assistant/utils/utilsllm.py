@@ -33,7 +33,7 @@ def load_model(model: str = None):
             api_key=os.environ["AZURE_OPENAI_API_KEY"]
         )
     elif model == "OPENAI":
-        model_name = config['OPENAI']['OPEN_AI_MODEL_NAME']
+        model_name = config['OPENAI']['OPENAI_MODEL_NAME']
         llm = ChatOpenAI(model_name=model_name, temperature=0)
     elif model == "MISTRAL":
         # chat = ChatMistralAI(mistral_api_key=mistral_api_key)

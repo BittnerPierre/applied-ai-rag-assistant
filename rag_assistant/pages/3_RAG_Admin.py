@@ -16,7 +16,7 @@ st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 def main():
     st.title(f"""📄 {app_name} View vDB 🤗""")
 
-    collection_name = st.selectbox("Collection", ["Default"])
+    collection_name = st.selectbox("Collection", ["Default", "RAG"])
 
     store = get_store(collection_name=collection_name)
     collection = store._collection
