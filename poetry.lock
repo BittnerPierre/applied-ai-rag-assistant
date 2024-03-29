@@ -1548,19 +1548,6 @@ files = [
 ]
 
 [[package]]
-name = "hnswlib"
-version = "0.8.0"
-description = "hnswlib"
-optional = false
-python-versions = "*"
-files = [
-    {file = "hnswlib-0.8.0.tar.gz", hash = "sha256:cb6d037eedebb34a7134e7dc78966441dfd04c9cf5ee93911be911ced951c44c"},
-]
-
-[package.dependencies]
-numpy = "*"
-
-[[package]]
 name = "htbuilder"
 version = "0.6.2"
 description = "A purely-functional HTML builder for Python. Think JSX rather than templates."
@@ -6727,4 +6714,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "997d8fc5018085103758d37f9cd5e2736f3b666b0c1bdae326d3aa08a46cc5ae"
+content-hash = "ff03d448573eea0038b851e8b9c614a980004230dde1a051e2777dc9c1e4133d"
