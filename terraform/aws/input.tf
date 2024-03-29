@@ -24,6 +24,6 @@ variable "subnet_id_3" {
 
 variable "dns_url" {
   description = "The DNS URL of your application. (It need to have a valid HTTPS certificate and a route 53 hosted zone)"
-  default = "ai-assistant-finaxys.net"
+  default = "ai-assistant.lab-finaxys.net"
   type        = string
 }
