@@ -25,12 +25,7 @@ from langchain.agents import initialize_agent, create_react_agent, AgentExecutor
 from langchain.agents.agent_types import AgentType
 
 # LLAMA INDEX SUITE
-from llama_index.core import VectorStoreIndex, StorageContext, SimpleDirectoryReader
-from llama_index.core import Settings
-
-from llama_index.llms.openai import OpenAI
-
-from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core import VectorStoreIndex, StorageContext, SimpleDirectoryReader, Settings
 
 config = load_config()
 
@@ -99,8 +94,12 @@ topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "O
 def load_sidebar():
     with st.sidebar:
         st.header("Parameters")
-        st.sidebar.checkbox("Azure", LLM_MODEL == "azure", disabled=True)
+        st.sidebar.checkbox("Azure", LLM_MODEL == "AZURE", disabled=True)
+        st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
 
+
+from llama_index.llms.mistralai import MistralAI
+from llama_index.embeddings.mistralai import MistralAIEmbedding
 
 
 @st.cache_resource(ttl="1h")
@@ -116,8 +115,11 @@ def configure_agent(model_name, advanced_rag = None):
 
     # nltk.download('averaged_perceptron_tagger')
     agent_li = None
-    llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
-    # llm = MistralAI() # not working yet as utilrags use OpenAIAgent.from_tools method
+    # llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
+    llm = MistralAI() # not working yet as utilrags use OpenAIAgent.from_tools method
+
+    Settings.llm = llm
+    Settings.embed_model = MistralAIEmbedding()
 
     if advanced_rag == "sentence_window":
 
@@ -185,7 +187,7 @@ def main():
     # for openai only
     model_name = st.sidebar.radio("Model", ["gpt-3.5-turbo", "gpt-4"],
                                   captions=["GPT 3.5 Turbo", "GPT 4"],
-                                  index=0, disabled=LLM_MODEL == "azure")
+                                  index=0, disabled=LLM_MODEL != "OPENAI")
 
     template = st.sidebar.text_area("Prompt", __template2__)
 
@@ -231,9 +233,7 @@ def main():
         with st.chat_message("assistant"):
             # store: VectorStore = get_store(embeddings)
 
-
             #output = agent.chat(prompt).response
-
 
             response = agent.invoke({"input": prompt})
             #output = agent.run(prompt)

@@ -52,3 +52,4 @@ default.sqlite
 /sentence_index
 /storage/AI
 /storage
+/data/cache

@@ -1,5 +1,7 @@
-from typing import Sequence
+from typing import Sequence, Optional
 
+from langchain_core.language_models import LLM
+from llama_index.core.agent.function_calling.base import FunctionCallingAgent
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from pydantic import BaseModel, Field
 
@@ -16,11 +18,12 @@ from langchain.callbacks.manager import trace_as_chain_group
 from langchain.utils.openai_functions import convert_pydantic_to_openai_function
 from langchain.output_parsers.openai_functions import PydanticOutputFunctionsParser
 
-from langchain.chat_models import ChatOpenAI
+from langchain_openai.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema import StrOutputParser
 from langchain.schema.runnable import RunnableParallel, RunnablePassthrough
 
+from llama_index.core.node_parser import SentenceSplitter
 
 # LLAMA INDEX SUITE
 
@@ -31,6 +34,16 @@ from llama_index.core.query_engine import SubQuestionQueryEngine
 from llama_index.agent.openai import OpenAIAgent
 from llama_index.core.vector_stores.types import VectorStore
 
+from .config_loader import load_config
+
+config = load_config()
+
+llama_index_root_dir = config['LLAMA_INDEX']['LLAMA_INDEX_ROOT_DIR']
+sentence_index_dir = config['LLAMA_INDEX']['SENTENCE_INDEX_DIR']
+merging_index_dir = config['LLAMA_INDEX']['MERGING_INDEX_DIR']
+subquery_index_dir = config['LLAMA_INDEX']['SUBQUERY_INDEX_DIR']
+
+# "local:BAAI/bge-small-en-v1.5"
 
 # https://python.langchain.com/docs/use_cases/question_answering/
 # https://python.langchain.com/docs/modules/chains/document/stuff
@@ -245,7 +258,8 @@ import os
 
 
 def build_sentence_window_index(
-    documents, llm, embed_model="local:BAAI/bge-small-en-v1.5", save_dir="sentence_index"
+    documents,
+    save_dir=f"{llama_index_root_dir}/{sentence_index_dir}"
 ):
     # create the sentence window node parser w/ default settings
     node_parser = SentenceWindowNodeParser.from_defaults(
@@ -253,20 +267,20 @@ def build_sentence_window_index(
         window_metadata_key="window",
         original_text_metadata_key="original_text",
     )
-    sentence_context = ServiceContext.from_defaults(
-        llm=llm,
-        embed_model=embed_model,
-        node_parser=node_parser,
-    )
+    text_splitter = SentenceSplitter()
+    Settings.text_splitter = text_splitter
     if not os.path.exists(save_dir):
-        sentence_index = VectorStoreIndex.from_documents(
-            documents, service_context=sentence_context
-        )
+
+        nodes = node_parser.get_nodes_from_documents(documents)
+        # base_nodes = text_splitter.get_nodes_from_documents(documents)
+
+        sentence_index = VectorStoreIndex(nodes)
         sentence_index.storage_context.persist(persist_dir=save_dir)
+
+        # base_index = VectorStoreIndex(base_nodes)
     else:
         sentence_index = load_index_from_storage(
             StorageContext.from_defaults(persist_dir=save_dir),
-            service_context=sentence_context,
         )
 
     return sentence_index
@@ -280,11 +294,14 @@ def get_sentence_window_query_engine(
     # define postprocessors
     postproc = MetadataReplacementPostProcessor(target_metadata_key="window")
     rerank = SentenceTransformerRerank(
-        top_n=rerank_top_n, model="BAAI/bge-reranker-base"
+        # we can use another model just for rerank ???
+        top_n=rerank_top_n,
+        model="BAAI/bge-reranker-base"
     )
 
     sentence_window_engine = sentence_index.as_query_engine(
-        similarity_top_k=similarity_top_k, node_postprocessors=[postproc, rerank]
+        similarity_top_k=similarity_top_k,
+        node_postprocessors=[postproc, rerank]
     )
     return sentence_window_engine
 
@@ -300,31 +317,28 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 
 def build_automerging_index(
     documents,
-    llm,
-    embed_model="local:BAAI/bge-small-en-v1.5",
-    save_dir="merging_index",
+    save_dir=f"{llama_index_root_dir}/{merging_index_dir}",
     chunk_sizes=None,
 ):
     chunk_sizes = chunk_sizes or [2048, 512, 128]
     node_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=chunk_sizes)
     nodes = node_parser.get_nodes_from_documents(documents)
     leaf_nodes = get_leaf_nodes(nodes)
-    merging_context = ServiceContext.from_defaults(
-        llm=llm,
-        embed_model=embed_model,
-    )
+    # merging_context = ServiceContext.from_defaults(
+    #     llm=llm,
+    #     embed_model=embed_model,
+    # )
     storage_context = StorageContext.from_defaults()
     storage_context.docstore.add_documents(nodes)
 
     if not os.path.exists(save_dir):
         automerging_index = VectorStoreIndex(
-            leaf_nodes, storage_context=storage_context, service_context=merging_context
+            leaf_nodes, storage_context=storage_context,
         )
         automerging_index.storage_context.persist(persist_dir=save_dir)
     else:
         automerging_index = load_index_from_storage(
             StorageContext.from_defaults(persist_dir=save_dir),
-            service_context=merging_context,
         )
     return automerging_index
 
@@ -340,6 +354,7 @@ def get_automerging_query_engine(
     )
 
     rerank = SentenceTransformerRerank(
+        # we can use another model just for rerank ???
         top_n=rerank_top_n, model="BAAI/bge-reranker-base"
     )
 
@@ -350,13 +365,12 @@ def get_automerging_query_engine(
     return auto_merging_engine
 
 
-def create_automerging_engine(llm, documents: Sequence[Document], embed_model: str):
+def create_automerging_engine(
+        documents: Sequence[Document],
+    ):
 
     automerging_index = build_automerging_index(
-        documents,
-        llm,
-        embed_model=embed_model,
-        save_dir="merging_index"
+        documents
     )
 
     automerging_query_engine = get_automerging_query_engine(
@@ -366,32 +380,45 @@ def create_automerging_engine(llm, documents: Sequence[Document], embed_model: s
     return automerging_query_engine
 
 
-def create_automerging_agent(llm, documents: Sequence[Document], name:str, description: str, embed_model: str = "local:BAAI/bge-small-en-v1.5", query_engine:  BaseQueryEngine = None):
+def create_automerging_agent(
+        llm,
+        documents: Sequence[Document],
+        name:str,
+        description: str,
+        query_engine: BaseQueryEngine = None):
 
     if not query_engine:
-        query_engine = create_automerging_engine(llm, documents, embed_model)
+        query_engine = create_automerging_engine(
+            documents,
+        )
 
-    agent_li = create_lli_agent(name, description, query_engine)
+    agent_li = create_lli_agent(name, description, query_engine, llm=llm)
     return agent_li
 
 
-def create_sentence_window_engine(llm, documents: Sequence[Document], embed_model: str):
+def create_sentence_window_engine(
+        documents: Sequence[Document],
+):
     sentence_index = build_sentence_window_index(
-        documents,
-        llm,
-        embed_model=embed_model,
-        save_dir="sentence_index"
+        documents
     )
     sentence_window_engine = get_sentence_window_query_engine(sentence_index)
     return sentence_window_engine
 
 
-def create_sentence_window_agent(llm, documents: Sequence[Document], name:str, description: str, embed_model: str = "local:BAAI/bge-small-en-v1.5", query_engine: BaseQueryEngine = None):
+def create_sentence_window_agent(
+        llm,
+        documents: Sequence[Document],
+        name:str,
+        description: str,
+        query_engine: BaseQueryEngine = None):
 
     if query_engine is None:
-        query_engine = create_sentence_window_engine(llm, documents, embed_model)
+        query_engine = create_sentence_window_engine(
+            documents,
+        )
 
-    agent_li = create_lli_agent(name, description, query_engine)
+    agent_li = create_lli_agent(name, description, query_engine, llm=llm)
 
     return agent_li
 
@@ -406,7 +433,11 @@ def infer_topic_from_list(doc_name, topics):
     return "Other"  # Default topic if no matches found
 
 
-def create_subquery_engine(llm, topics: list[str], documents: Sequence[Document], embed_model: str):
+def create_subquery_engine(
+        topics: list[str],
+        documents: Sequence[Document],
+):
+
     doc_set = {topic: [] for topic in topics}
     all_docs = []
     for doc in documents:
@@ -416,8 +447,6 @@ def create_subquery_engine(llm, topics: list[str], documents: Sequence[Document]
 
     Settings.chunk_size = 512
     Settings.chunk_overlap = 64
-    Settings.llm = llm
-    Settings.embed_model = embed_model
     index_set = {}
     for topic in topics:
         # chroma_collection = db.get_or_create_collection(f"RAG_{topic}")
@@ -429,12 +458,12 @@ def create_subquery_engine(llm, topics: list[str], documents: Sequence[Document]
             storage_context=storage_context,
         )
         index_set[topic] = cur_index
-        storage_context.persist(persist_dir=f"./storage/{topic}")
+        storage_context.persist(persist_dir=f"{llama_index_root_dir}/{subquery_index_dir}/{topic}")
 
     index_set = {}
     for topic in topics:
         storage_context = StorageContext.from_defaults(
-            persist_dir=f"./storage/{topic}"
+            persist_dir=f"{llama_index_root_dir}/{subquery_index_dir}/{topic}"
         )
         cur_index = load_index_from_storage(
             storage_context,
@@ -455,26 +484,33 @@ def create_subquery_engine(llm, topics: list[str], documents: Sequence[Document]
     # now I want to do the same with a list of BaseTool
     query_engine = SubQuestionQueryEngine.from_defaults(
         query_engine_tools=individual_query_engine_tools,
-        llm=llm,
     )
     return query_engine
 
 
-def create_subquery_agent(llm, topics: list[str], documents: Sequence[Document], name: str, description: str, embed_model: str = None, query_engine: BaseQueryEngine = None): #/-documents: Sequence[Document],  "local:BAAI/bge-small-en-v1.5"
+def create_subquery_agent(
+        llm,
+        topics: list[str],
+        documents: Sequence[Document],
+        name: str,
+        description: str,
+        query_engine: BaseQueryEngine = None
+):
 
     if query_engine is None:
-        query_engine = create_subquery_engine(llm, topics, documents, embed_model)
+        query_engine = create_subquery_engine(
+            topics,
+            documents,
+        )
 
-    agent_li = create_lli_agent(name, description, query_engine)
+    agent_li = create_lli_agent(name, description, query_engine, llm)
     return agent_li
 
 
-def create_direct_query_engine(llm, documents: Sequence[Document], embed_model: str):
-    service_context = ServiceContext.from_defaults(
-        llm=llm, embed_model=embed_model
-    )
-    index = VectorStoreIndex.from_documents(documents,
-                                            service_context=service_context)
+def create_direct_query_engine(
+        documents: Sequence[Document]
+    ):
+    index = VectorStoreIndex.from_documents(documents)
     query_engine = index.as_query_engine()
     return query_engine
 
@@ -482,14 +518,16 @@ def create_direct_query_engine(llm, documents: Sequence[Document], embed_model: 
 def create_direct_query_agent(llm, documents: Sequence[Document], name:str, description: str, embed_model: str = "local:BAAI/bge-small-en-v1.5", query_engine: BaseQueryEngine = None):
 
     if query_engine is None:
-        query_engine = create_direct_query_engine(llm, documents, embed_model)
+        query_engine = create_direct_query_engine(
+            documents
+        )
 
-    agent_li = create_lli_agent(name, description, query_engine)
+    agent_li = create_lli_agent(name, description, query_engine, llm)
 
     return agent_li
 
 
-def create_lli_agent(name:str, description: str, query_engine: BaseQueryEngine):
+def create_lli_agent(name:str, description: str, query_engine: BaseQueryEngine, llm: Optional[LLM] = None):
 
     query_engine_tool = QueryEngineTool(
         query_engine=query_engine,
@@ -498,6 +536,7 @@ def create_lli_agent(name:str, description: str, query_engine: BaseQueryEngine):
             description=description,
         ),
     )
-    agent_li = OpenAIAgent.from_tools(tools=[query_engine_tool], verbose=True)
-
+    agent_li = FunctionCallingAgent.from_llm(tools=[query_engine_tool], llm=llm, verbose=True)
+    # agent_li = OpenAIAgent.from_tools(tools=[query_engine_tool], verbose=True)
+    # MistralAIAgent.from_tools()
     return agent_li

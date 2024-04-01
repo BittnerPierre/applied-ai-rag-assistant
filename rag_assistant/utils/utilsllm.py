@@ -1,16 +1,15 @@
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 import os
-import sys
 from dotenv import load_dotenv, find_dotenv
 import openai
-# import mistralai
+from mistralai.client import MistralClient
+
 
 from .config_loader import load_config
 
 from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from openai import AzureOpenAI
-# from langchain_mistralai.chat_models import ChatMistralAI
-# from mistralai.client import MistralClient
+from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 
 
 config = load_config()
@@ -24,7 +23,6 @@ mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 def load_model(model: str = None):
     model = config['LLM']['LLM_MODEL']
-    print(f"Model Type: {model}")
     if model == "AZURE":
         llm = AzureChatOpenAI(
             openai_api_version=config['AZURE']['AZURE_OPENAI_API_VERSION'],
@@ -36,8 +34,9 @@ def load_model(model: str = None):
         model_name = config['OPENAI']['OPENAI_MODEL_NAME']
         llm = ChatOpenAI(model_name=model_name, temperature=0)
     elif model == "MISTRAL":
-        # chat = ChatMistralAI(mistral_api_key=mistral_api_key)
-        raise NotImplementedError(f"{model} Model not implemented yet.")
+        model_name = config['MISTRAL']['CHAT_MODEL']
+        llm = ChatMistralAI(mistral_api_key=mistral_api_key, model= model_name)
+        # raise NotImplementedError(f"{model} Model not implemented yet.")
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
@@ -46,7 +45,6 @@ def load_model(model: str = None):
 
 def load_client(model: str = None):
     model = config['LLM']['LLM_MODEL']
-    print(f"Model Type: {model}")
     if model == "AZURE":
         client = AzureOpenAI(
             api_version=config['AZURE']['AZURE_OPENAI_API_VERSION'],
@@ -55,14 +53,11 @@ def load_client(model: str = None):
             api_key=os.environ["AZURE_OPENAI_API_KEY"]
         )
     elif model == "MISTRAL":
-        raise NotImplementedError(f"{model} chat client not done")
-        # client = MistralClient(api_key=mistral_api_key)
+        client = MistralClient(api_key=mistral_api_key)
     else:
         raise NotImplementedError(f"{model} chat client not done")
 
     return client
-
-
 
 
 def load_embeddings():
@@ -77,7 +72,7 @@ def load_embeddings():
     elif model == "OPENAI":
         embeddings = OpenAIEmbeddings()
     elif model == "MISTRAL":
-        raise NotImplementedError(f"{model} chat client not done")
+        embeddings = MistralAIEmbeddings()
     else:
         embeddings = OpenAIEmbeddings()
 
