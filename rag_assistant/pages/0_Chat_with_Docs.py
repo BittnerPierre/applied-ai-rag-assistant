@@ -74,7 +74,7 @@ __template2__ = """You are an assistant designed to guide software application a
     To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
 
-@st.cache_resource(ttl="0")
+@st.cache_resource(ttl="1h")
 def configure_retriever(pdf_files_paths):
     # Read documents
     # docs = []
