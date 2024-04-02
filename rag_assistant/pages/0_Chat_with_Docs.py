@@ -74,7 +74,7 @@ __template2__ = """You are an assistant designed to guide software application a
     To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
 
-@st.cache_resource(ttl="1h")
+@st.cache_resource(ttl="0")
 def configure_retriever(pdf_files_paths):
     # Read documents
     # docs = []
@@ -176,33 +176,98 @@ suggested_questions = [
     "Comment assurez l'efficacité des performances ?",
 ]
 
+# Function to hide suggested questions after user interaction
+def hide_suggested_questions():
+    for i in range(1, len(suggested_questions) + 1):
+        st.session_state[f"suggested_question_{i}_hidden"] = True
+
+# Check if user interacted with previous turn (button click or input)
+if st.session_state.get("user_interacted", False):
+    hide_suggested_questions()
+    st.session_state.pop("user_interacted")  # Reset flag for next turn
+
 # Display "How can I help you?" message followed by suggested questions
 with st.chat_message("assistant"):
     st.write("Comment puis-je vous aider?")
 
+# # Display suggested questions in a 2x2 table
+# col1, col2 = st.columns(2)
+# question_clicked = None  # Variable to track if a question has been clicked
+
+# with col1:
+#     if st.button(f"{suggested_questions[0]}"):
+#         st.session_state.user_query = suggested_questions[0]  # Set session state with the user query
+#         question_clicked = suggested_questions[0]
+
+# with col2:
+#     if st.button(f"{suggested_questions[1]}"):
+#         st.session_state.user_query = suggested_questions[1]  # Set session state with the user query
+#         question_clicked = suggested_questions[1]
+
+# with col1:
+#     if st.button(f"{suggested_questions[2]}"):
+#         st.session_state.user_query = suggested_questions[2]  # Set session state with the user query
+#         question_clicked = suggested_questions[2]
+
+# with col2:
+#     if st.button(f"{suggested_questions[3]}"):
+#         st.session_state.user_query = suggested_questions[3]  # Set session state with the user query
+#         question_clicked = suggested_questions[3]
+
+# # Hide suggested questions if a question has been clicked
+# if question_clicked:
+#     st.empty()
+
+
 # Display suggested questions in a 2x2 table
 col1, col2 = st.columns(2)
-with col1:
-    if st.button(f"{suggested_questions[0]}"):
-        st.session_state.user_query = suggested_questions[0]  # Set session state with the user query
+for i, question in enumerate(suggested_questions, start=1):
+    if not st.session_state.get(f"suggested_question_{i}_hidden", False):
+        col = col1 if i % 2 != 0 else col2
+        if col.button(question):
+            st.session_state.user_query = question
+            st.session_state["user_interacted"] = True # Set flag to indicate user interaction
+
+# if not st.session_state.get("suggested_question_1_hidden", False):  
+#     with col1:
+#         if st.button(f"{suggested_questions[0]}"):
+#             st.session_state.user_query = suggested_questions[0]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+#         # break # Exit the loop after setting the user query
+
+# # for suggested_question in suggested_questions:
+# # if st.button(suggested_question):
+# # st.session_state.user_query = suggested_question  # Set session state with the user query
+# # break  # Exit the loop after setting the user query
+# if not st.session_state.get("suggested_question_2_hidden", False):  
+#     with col2:
+#         if st.button(f"{suggested_questions[1]}"):
+#             st.session_state.user_query = suggested_questions[1]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+#         # break # Exit the loop after setting the user query
+# if not st.session_state.get("suggested_question_3_hidden", False):
+#     with col1:
+#         if st.button(f"{suggested_questions[2]}"):
+#             st.session_state.user_query = suggested_questions[2]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+#         # break # Exit the loop after setting the user query
+# if not st.session_state.get("suggested_question_4_hidden", False):
+#     with col2:
+#         if st.button(f"{suggested_questions[3]}"):
+#             st.session_state.user_query = suggested_questions[3]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
         # break # Exit the loop after setting the user query
 
-# for suggested_question in suggested_questions:
-# if st.button(suggested_question):
-# st.session_state.user_query = suggested_question  # Set session state with the user query
-# break  # Exit the loop after setting the user query
-with col2:
-    if st.button(f"{suggested_questions[1]}"):
-        st.session_state.user_query = suggested_questions[1]  # Set session state with the user query
-        # break # Exit the loop after setting the user query
-with col1:
-    if st.button(f"{suggested_questions[2]}"):
-        st.session_state.user_query = suggested_questions[2]  # Set session state with the user query
-        # break # Exit the loop after setting the user query
-with col2:
-    if st.button(f"{suggested_questions[3]}"):
-        st.session_state.user_query = suggested_questions[3]  # Set session state with the user query
-        # break # Exit the loop after setting the user query
+# Check for user input and set interaction flag
+# user_query = st.text_input(placeholder="Ask me anything!", key="user_input", label='your question')  # Use key for uniqueness
+# if user_query:
+#     st.session_state["user_query"] = user_query
+#     st.session_state["user_interacted"] = True  # Set flag for interaction
+
 
 # for i, question in enumerate(suggested_questions, start=1):
 #     if st.button(f"{question}", key=f"suggested_question_{i}"):
@@ -215,11 +280,13 @@ with col2:
 
 
 
+
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
 for msg in msgs.messages:
     st.chat_message(avatars[msg.type]).write(msg.content)
 
+# Handle suggested questions
 if "user_query" in st.session_state:
     user_query = st.session_state.user_query
     st.session_state.pop("user_query")  # Clear the session state
@@ -233,6 +300,9 @@ if "user_query" in st.session_state:
 #Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
     st.chat_message("user").write(user_query)
+    #st.session_state["user_query"] = user_query    
+    st.session_state["user_interacted"] = True
+    
 
     with st.chat_message("assistant"):
         retrieval_handler = PrintRetrievalHandler(st.container())
