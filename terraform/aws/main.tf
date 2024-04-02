@@ -160,6 +160,10 @@ resource "aws_ecs_task_definition" "ai_assistant_task_definition" {
         {
           "name": "OPENAI_API_KEY",
           "valueFrom": "arn:aws:secretsmanager:eu-west-1:441525731509:secret:ai-assistant-G3Ft3L:OPENAI_API_KEY::"
+        },
+        {
+          "name": "MISTRAL_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:eu-west-1:441525731509:secret:ai-assistant-G3Ft3L:MISTRAL_API_KEY::"
         }
       ]
   }])
@@ -250,7 +254,7 @@ resource "aws_lb_listener" "application_lb_listener_redirect" {
 }
 
 data "aws_acm_certificate" "ai_assistant_certificate" {
-  domain       = var.dns_url
+  domain       = var.dns_url_app_subnet
 }
 
 data "aws_route53_zone" "ai_assistant_zone" {
@@ -259,7 +263,7 @@ data "aws_route53_zone" "ai_assistant_zone" {
 
 resource "aws_route53_record" "example_record" {
   zone_id = data.aws_route53_zone.ai_assistant_zone.zone_id
-  name    = var.dns_url
+  name    = var.dns_url_app_subnet
   type    = "A"
   alias {
     name                   = aws_lb.application_lb.dns_name
