@@ -296,6 +296,18 @@ if "user_query" in st.session_state:
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+        # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
+        # if feedback == "👍":
+        #     st.write("Great! I'm glad I could help.")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(":thumbsup:", key="like_button"):
+                # Handle positive feedback (like)
+                st.write("Thanks for the feedback!")
+        with col2: 
+            if st.button(":thumbsdown:", key="dislike_button"):
+                # Handle negative feedback (dislike)
+                st.write("We'll try to improve our answers!")
 
 #Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
@@ -308,3 +320,37 @@ if user_query := st.chat_input(placeholder="Ask me anything!"):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+
+        # # Display thumbs-up and thumbs-down for user feedback
+        # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
+        
+        # if feedback == "👍":
+        #    st.write("Great! I'm glad I could help.")
+
+        col1, col2 = st.columns(2)  
+        with col1:
+            if st.button(":thumbsup:", key="like_button"):
+                # Handle positive feedback (like)
+                st.write("Thanks for the feedback!")
+        with col2:
+            if st.button(":thumbsdown:", key="dislike_button"):
+                # Handle negative feedback (dislike)
+                st.write("We'll try to improve our answers!") 
+
+
+
+
+# col1, col2 = st.columns(2)
+# with col1:
+#     if st.button(":thumbsup:", key="like_button"):
+#         # Handle positive feedback (like)
+#         st.write("Thanks for the feedback!")
+
+# with col2:
+#     if st.button(":thumbsdown:", key="dislike_button"):
+#         # Handle negative feedback (dislike)
+#         st.write("We'll try to improve our answers!")
+
+
+
+
