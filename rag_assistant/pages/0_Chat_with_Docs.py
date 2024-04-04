@@ -227,6 +227,9 @@ collection_name = config['VECTORDB']['collection_name']
 st.set_page_config(page_title="Finaxys: Chat with Documents", page_icon="🦜")
 st.title("Finaxys: Chat with Documents")
 
+# Display the image icon along with the app title
+# st.image("/Users/loicsteve/Downloads/LOGO.b42ce8d.svg", use_column_width=True)
+
 # Define paths for PDF files
 pdf_files_paths = [
     "data/sources/pdf/aws/waf/AWS_Well-Architected_Framework.pdf",
@@ -235,6 +238,10 @@ pdf_files_paths = [
     "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
     # Add more paths as needed
 ]
+# "data/sources/pdf/owasp/LLM_AI_Security_and_Governance_Checklist-v1_FR.pdf",
+# "data/sources/pdf/arxiv/2210.01241.pdf",
+# "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
+
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
      including security, compliance, availability, access methods, data storage, processing, performance efficiency,
@@ -273,8 +280,28 @@ __template2__ = """You are an assistant designed to guide software application a
     To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
 
-@st.cache_resource(ttl="0")
+@st.cache_resource(ttl="1h")
 def configure_retriever(pdf_files_paths):
+    # Read documents
+    # docs = []
+    # for file_path in pdf_files_paths:
+    #     loader = PyPDFLoader(file_path)
+    #     docs.extend(loader.load())
+    #
+    # # Split documents
+    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+    # splits = text_splitter.split_documents(docs)
+    #
+    # # Create embeddings and store in vectordb
+    # embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    # persist_directory = "data/chroma/"
+    # vectordb = Chroma.from_documents(
+    #     documents=splits,
+    #     embedding=embedding,
+    #     persist_directory=persist_directory
+    # )
+
+    # Define retriever
     vectordb = get_store()
 
     retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
@@ -336,6 +363,18 @@ llm = ChatOpenAI(
 qa_chain = ConversationalRetrievalChain.from_llm(
     llm, retriever=retriever, memory=memory, verbose=True
 )
+
+# # Add "How can I help you?" message to chat history
+# if len(msgs.messages) == 0:
+#     msgs.add_ai_message("How can I help you?")
+
+# Define suggested questions
+# suggested_questions = [
+#     "What is reinforcement learning?",
+#     "What is reinforcement learning for human feedback?",
+#     "How to process reinforcement learning?",
+#     "What are the advantages of reinforcement learning?"
+# ]
 suggested_questions = [
     "Comment sécuriser les données sensibles ?",
     "Quelles stratégies pour une haute disponibilité ?",
@@ -348,63 +387,110 @@ def hide_suggested_questions():
     for i in range(1, len(suggested_questions) + 1):
         st.session_state[f"suggested_question_{i}_hidden"] = True
 
-#Define a function to handle assistant responses and feedback
-def handle_assistant_response(user_query):
-    with st.chat_message("assistant"):
-        retrieval_handler = PrintRetrievalHandler(st.container())
-        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
-        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-
-        # Display response and feedback buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(":thumbsup:", key="like_button"):
-                st.write("Thanks for the feedback!")  # Handle positive feedback (like)
-        with col2:
-            if st.button(":thumbsdown:", key="dislike_button"):
-                st.write("We'll try to improve our answers!")  # Handle negative feedback (dislike)
-
-# def handle_assistant_response(clicked_question=None):
-#     with st.chat_message("assistant"):
-#         # ... (rest of your code for retrieval and stream handlers)
-#         retrieval_handler = PrintRetrievalHandler(st.container())
-#         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
-#         if clicked_question:
-#             response = qa_chain.run(clicked_question, callbacks=[retrieval_handler, stream_handler])
-#         else:
-#             response = qa_chain.run(st.session_state.user_query, callbacks=[retrieval_handler, stream_handler])
+# Check if user interacted with previous turn (button click or input)
+if st.session_state.get("user_interacted", False):
+    hide_suggested_questions()
+    st.session_state.pop("user_interacted")  # Reset flag for next turn
 
 # Display "How can I help you?" message followed by suggested questions
 with st.chat_message("assistant"):
     st.write("Comment puis-je vous aider?")
 
+# # Display suggested questions in a 2x2 table
+# col1, col2 = st.columns(2)
+# question_clicked = None  # Variable to track if a question has been clicked
+
+# with col1:
+#     if st.button(f"{suggested_questions[0]}"):
+#         st.session_state.user_query = suggested_questions[0]  # Set session state with the user query
+#         question_clicked = suggested_questions[0]
+
+# with col2:
+#     if st.button(f"{suggested_questions[1]}"):
+#         st.session_state.user_query = suggested_questions[1]  # Set session state with the user query
+#         question_clicked = suggested_questions[1]
+
+# with col1:
+#     if st.button(f"{suggested_questions[2]}"):
+#         st.session_state.user_query = suggested_questions[2]  # Set session state with the user query
+#         question_clicked = suggested_questions[2]
+
+# with col2:
+#     if st.button(f"{suggested_questions[3]}"):
+#         st.session_state.user_query = suggested_questions[3]  # Set session state with the user query
+#         question_clicked = suggested_questions[3]
+
+# # Hide suggested questions if a question has been clicked
+# if question_clicked:
+#     st.empty()
+
+
 # Display suggested questions in a 2x2 table
 col1, col2 = st.columns(2)
-suggested_questions_visible = True
 for i, question in enumerate(suggested_questions, start=1):
     if not st.session_state.get(f"suggested_question_{i}_hidden", False):
         col = col1 if i % 2 != 0 else col2
         if col.button(question):
             st.session_state.user_query = question
-            suggested_questions_visible = True  # Set flag to indicate suggested questions are visible
-            #handle_assistant_response(st.session_state.user_query) 
-            if suggested_questions_visible:
-                hide_suggested_questions()
-            # hide_suggested_questions()  # Hide suggested questions after a click
-            #handle_assistant_response(st.session_state.user_query)  # Handle the response
+            st.session_state["user_interacted"] = True # Set flag to indicate user interaction
+
+# if not st.session_state.get("suggested_question_1_hidden", False):  
+#     with col1:
+#         if st.button(f"{suggested_questions[0]}"):
+#             st.session_state.user_query = suggested_questions[0]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+#         # break # Exit the loop after setting the user query
+
+# # for suggested_question in suggested_questions:
+# # if st.button(suggested_question):
+# # st.session_state.user_query = suggested_question  # Set session state with the user query
+# # break  # Exit the loop after setting the user query
+# if not st.session_state.get("suggested_question_2_hidden", False):  
+#     with col2:
+#         if st.button(f"{suggested_questions[1]}"):
+#             st.session_state.user_query = suggested_questions[1]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+#         # break # Exit the loop after setting the user query
+# if not st.session_state.get("suggested_question_3_hidden", False):
+#     with col1:
+#         if st.button(f"{suggested_questions[2]}"):
+#             st.session_state.user_query = suggested_questions[2]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+#         # break # Exit the loop after setting the user query
+# if not st.session_state.get("suggested_question_4_hidden", False):
+#     with col2:
+#         if st.button(f"{suggested_questions[3]}"):
+#             st.session_state.user_query = suggested_questions[3]  # Set session state with the user query
+#             st.session_state["user_interacted"] = True  # Set flag to indicate user interaction
+
+        # break # Exit the loop after setting the user query
+
+# Check for user input and set interaction flag
+# user_query = st.text_input(placeholder="Ask me anything!", key="user_input", label='your question')  # Use key for uniqueness
+# if user_query:
+#     st.session_state["user_query"] = user_query
+#     st.session_state["user_interacted"] = True  # Set flag for interaction
 
 
-# # Handle user queries
-# if suggested_questions_visible:
-#     hide_suggested_questions()
+# for i, question in enumerate(suggested_questions, start=1):
+#     if st.button(f"{question}", key=f"suggested_question_{i}"):
+#         # Perform action upon clicking the button (e.g., send the question to the chatbot)
+#         user_query = question
+#
+#         with st.chat_message("assistant"):
+#             stream_handler = StreamHandler(st.empty())
+#             response = qa_chain.run(user_query, callbacks=[stream_handler])
 
 
-    
+
+
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
 for msg in msgs.messages:
     st.chat_message(avatars[msg.type]).write(msg.content)
-
 
 # Handle suggested questions
 if "user_query" in st.session_state:
@@ -412,13 +498,70 @@ if "user_query" in st.session_state:
     st.session_state.pop("user_query")  # Clear the session state
     st.chat_message("user").write(user_query)
 
-    # Call the function to handle assistant response
-    handle_assistant_response(user_query)
+    with st.chat_message("Assistant"):
+        retrieval_handler = PrintRetrievalHandler(st.container())
+        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
+        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+        # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
+        # if feedback == "👍":
+        #     st.write("Great! I'm glad I could help.")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(":thumbsup:", key="like_button"):
+                # Handle positive feedback (like)
+                st.write("Thanks for the feedback!")
+        with col2: 
+            if st.button(":thumbsdown:", key="dislike_button"):
+                # Handle negative feedback (dislike)
+                st.write("We'll try to improve our answers!")
 
-
-
+#Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
-    hide_suggested_questions()
     st.chat_message("user").write(user_query)
+<<<<<<< HEAD
     # Call the function to handle assistant response
     handle_assistant_response(user_query)
+=======
+    #st.session_state["user_query"] = user_query    
+    st.session_state["user_interacted"] = True
+    
+
+    with st.chat_message("assistant"):
+        retrieval_handler = PrintRetrievalHandler(st.container())
+        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
+        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+
+        # # Display thumbs-up and thumbs-down for user feedback
+        # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
+        
+        # if feedback == "👍":
+        #    st.write("Great! I'm glad I could help.")
+
+        col1, col2 = st.columns(2)  
+        with col1:
+            if st.button(":thumbsup:", key="like_button"):
+                # Handle positive feedback (like)
+                st.write("Thanks for the feedback!")
+        with col2:
+            if st.button(":thumbsdown:", key="dislike_button"):
+                # Handle negative feedback (dislike)
+                st.write("We'll try to improve our answers!") 
+
+
+
+
+# col1, col2 = st.columns(2)
+# with col1:
+#     if st.button(":thumbsup:", key="like_button"):
+#         # Handle positive feedback (like)
+#         st.write("Thanks for the feedback!")
+
+# with col2:
+#     if st.button(":thumbsdown:", key="dislike_button"):
+#         # Handle negative feedback (dislike)
+#         st.write("We'll try to improve our answers!")
+
+
+
+
+>>>>>>> parent of 6ecc066 ('Changes realated tosuggested questions ')
