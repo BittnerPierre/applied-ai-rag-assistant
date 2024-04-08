@@ -1,19 +1,3 @@
-# data "aws_vpc" "ai_assistant_vpc" {
-#   id = "vpc-72dfcf14"
-# }
-
-# data  "aws_subnet" "ai_assistant_subnet_1" {
-#   id = "subnet-0a75fa50"
-# }
-
-# data  "aws_subnet" "ai_assistant_subnet_2" {
-#   id = "subnet-1fd38e57"
-# }
-
-# data  "aws_subnet" "ai_assistant_subnet_3" {
-#   id = "subnet-703c7116"
-# }
-
 data "aws_vpc" "ai_assistant_vpc" {
   id = var.vpc_id
 }
@@ -63,6 +47,7 @@ resource "aws_ecs_cluster_capacity_providers" "cluster" {
 resource "aws_cloudwatch_log_group" "ai_assistant-cloudwatch-log" {
   name = "/ecs/ai_assistant-taskdef-iac-https"
 }
+
 resource "aws_security_group" "ai_assistant_security_group" {
   name        = "ai_assistant-security-group-https"
   vpc_id      = data.aws_vpc.ai_assistant_vpc.id
@@ -79,6 +64,12 @@ resource "aws_security_group" "ai_assistant_security_group" {
     protocol    = "TCP"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "TCP"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
   egress {
     from_port        = 0
     to_port          = 0
@@ -88,6 +79,26 @@ resource "aws_security_group" "ai_assistant_security_group" {
   }
 }
 
+resource "aws_kms_key" "volume_key" {
+  description             = "Volume key"
+  deletion_window_in_days = 7
+}
+
+resource "aws_efs_file_system" "ai_assistant_efs_file_system" {
+  availability_zone_name = "eu-west-1a"
+  encrypted              = true
+  kms_key_id = aws_kms_key.volume_key.arn
+
+  tags = {
+    Name = "ai-assistant"
+  }
+}
+
+resource "aws_efs_mount_target" "ai_assistant_efs_mount_target" {
+  file_system_id  = aws_efs_file_system.ai_assistant_efs_file_system.id
+  subnet_id       = data.aws_subnet.ai_assistant_subnet_1.id
+  security_groups = [aws_security_group.ai_assistant_security_group.id]
+}
 
 resource "aws_ecs_service" "ai_assistant_service" {
   name            = "ai_assistant-service-iac-https"
@@ -100,7 +111,7 @@ resource "aws_ecs_service" "ai_assistant_service" {
     weight            = 1
   }
   network_configuration {
-    subnets = [data.aws_subnet.ai_assistant_subnet_1.id, data.aws_subnet.ai_assistant_subnet_2.id, data.aws_subnet.ai_assistant_subnet_3.id]
+    subnets = [data.aws_subnet.ai_assistant_subnet_1.id]#data.aws_subnet.ai_assistant_subnet_2.id, data.aws_subnet.ai_assistant_subnet_3.id
     security_groups = [aws_security_group.ai_assistant_security_group.id]
     assign_public_ip = true
   }
@@ -126,9 +137,16 @@ resource "aws_ecs_task_definition" "ai_assistant_task_definition" {
 
   cpu          = "512"
   memory       = "1024"
-
-  execution_role_arn =  data.aws_iam_role.ecs_execution_role.arn
-  task_role_arn =  data.aws_iam_role.ecs_execution_role.arn
+  volume {
+    name = "efs-volume"
+    efs_volume_configuration {
+      file_system_id = aws_efs_file_system.ai_assistant_efs_file_system.id
+      root_directory = "/"
+      transit_encryption = "ENABLED"
+    }
+  }
+  execution_role_arn =  aws_iam_role.ai_assistant_ecs_execution_role.arn
+  task_role_arn =  aws_iam_role.ai_assistant_ecs_execution_role.arn
 
   container_definitions = jsonencode([{
     name  = "ai_assistant_https"
@@ -139,10 +157,15 @@ resource "aws_ecs_task_definition" "ai_assistant_task_definition" {
         "cpuArchitecture": "X86_64",
         "operatingSystemFamily": "LINUX"
     }
+    mountPoints = [{
+        sourceVolume = "efs-volume"
+        containerPath = "/app/data/chroma"
+        readOnly = false
+    }]
     memoryReservation=  1024
     portMappings = [{
       name = "ai_assistant-80-tcp"
-      containerPort = 80,
+      containerPort = 80
       hostPort      = 80
       appProtocol = "http"
     }]
@@ -172,6 +195,7 @@ resource "aws_ecs_task_definition" "ai_assistant_task_definition" {
 data "aws_iam_role" "ecs_execution_role" {
   name = "ecs_execution_role_https"
 }
+
 # resource "aws_iam_role" "ecs_execution_role" {
 #   name = "ecs_execution_role_https"
 
@@ -197,6 +221,11 @@ resource "aws_iam_role_policy_attachment" "cloud_watch_access_role_attachment" {
   role       =  data.aws_iam_role.ecs_execution_role.name
 }
 
+resource "aws_iam_role_policy_attachment" "efs_access_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"
+  role       =  data.aws_iam_role.ecs_execution_role.name
+}
+
 resource "aws_iam_role_policy_attachment" "ecs_execution_role_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
   role       =  data.aws_iam_role.ecs_execution_role.name
@@ -205,6 +234,47 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_attachment" {
 resource "aws_iam_role_policy_attachment" "ec2_container_registry_role_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   role       =  data.aws_iam_role.ecs_execution_role.name
+}
+
+
+resource "aws_iam_role" "ai_assistant_ecs_execution_role" {
+  name = "ai_assistant_ecs_execution_role_https"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action = "sts:AssumeRole",
+      Effect = "Allow",
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_secret_read_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+  role       = aws_iam_role.ai_assistant_ecs_execution_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_cloud_watch_access_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+  role       =  aws_iam_role.ai_assistant_ecs_execution_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_efs_access_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"
+  role       =  aws_iam_role.ai_assistant_ecs_execution_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_ecs_execution_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+  role       =  aws_iam_role.ai_assistant_ecs_execution_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_ec2_container_registry_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       =  aws_iam_role.ai_assistant_ecs_execution_role.name
 }
 
 resource "aws_lb_target_group" "ai_assistant_target_group_https" {
