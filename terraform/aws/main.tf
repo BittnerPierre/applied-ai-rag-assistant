@@ -85,7 +85,6 @@ resource "aws_kms_key" "volume_key" {
 }
 
 resource "aws_efs_file_system" "ai_assistant_efs_file_system" {
-  availability_zone_name = "eu-west-1a"
   encrypted              = true
   kms_key_id = aws_kms_key.volume_key.arn
 
@@ -94,11 +93,25 @@ resource "aws_efs_file_system" "ai_assistant_efs_file_system" {
   }
 }
 
-resource "aws_efs_mount_target" "ai_assistant_efs_mount_target" {
+resource "aws_efs_mount_target" "ai_assistant_efs_mount_target_1" {
   file_system_id  = aws_efs_file_system.ai_assistant_efs_file_system.id
   subnet_id       = data.aws_subnet.ai_assistant_subnet_1.id
   security_groups = [aws_security_group.ai_assistant_security_group.id]
 }
+
+resource "aws_efs_mount_target" "ai_assistant_efs_mount_target_2" {
+  file_system_id  = aws_efs_file_system.ai_assistant_efs_file_system.id
+  subnet_id       = data.aws_subnet.ai_assistant_subnet_2.id
+  security_groups = [aws_security_group.ai_assistant_security_group.id]
+}
+
+
+resource "aws_efs_mount_target" "ai_assistant_efs_mount_target_3" {
+  file_system_id  = aws_efs_file_system.ai_assistant_efs_file_system.id
+  subnet_id       = data.aws_subnet.ai_assistant_subnet_3.id
+  security_groups = [aws_security_group.ai_assistant_security_group.id]
+}
+
 
 resource "aws_ecs_service" "ai_assistant_service" {
   name            = "ai_assistant-service-iac-https"
@@ -111,7 +124,7 @@ resource "aws_ecs_service" "ai_assistant_service" {
     weight            = 1
   }
   network_configuration {
-    subnets = [data.aws_subnet.ai_assistant_subnet_1.id]#data.aws_subnet.ai_assistant_subnet_2.id, data.aws_subnet.ai_assistant_subnet_3.id
+    subnets = [data.aws_subnet.ai_assistant_subnet_1.id, data.aws_subnet.ai_assistant_subnet_2.id, data.aws_subnet.ai_assistant_subnet_3.id]
     security_groups = [aws_security_group.ai_assistant_security_group.id]
     assign_public_ip = true
   }
