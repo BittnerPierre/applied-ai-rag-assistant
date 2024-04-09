@@ -15,6 +15,7 @@ from langchain_community.vectorstores import Chroma
 from dotenv import load_dotenv, find_dotenv
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
+from streamlit_feedback import streamlit_feedback
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
@@ -197,18 +198,20 @@ def handle_assistant_response(user_query):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+        feedback = streamlit_feedback(feedback_type = "thumbs",
+                               optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
         # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
         # if feedback == "👍":
         #     st.write("Great! I'm glad I could help.")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(":thumbsup:", key="like_button"):
-                # Handle positive feedback (like)
-                st.write("Thanks for the feedback!")
-        with col2: 
-            if st.button(":thumbsdown:", key="dislike_button"):
-                # Handle negative feedback (dislike)
-                st.write("We'll try to improve our answers!")
+        # col1, col2 = st.columns(2)
+        # with col1:
+        #     if st.button(":thumbsup:", key="like_button"):
+        #         # Handle positive feedback (like)
+        #         st.write("Thanks for the feedback!")
+        # with col2: 
+        #     if st.button(":thumbsdown:", key="dislike_button"):
+        #         # Handle negative feedback (dislike)
+        #         st.write("We'll try to improve our answers!")
 
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
