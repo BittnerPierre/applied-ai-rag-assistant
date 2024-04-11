@@ -14,7 +14,7 @@ ENV POETRY_NO_INTERACTION=1 \
 # A directory to have app data 
 WORKDIR /app
 
-COPY pyproject.toml ./
+COPY pyproject.toml poetry.lock ./
 
 RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
