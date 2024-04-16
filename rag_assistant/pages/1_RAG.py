@@ -6,7 +6,9 @@ from langchain_core.tools import ToolException, Tool
 # from openai import OpenAI
 import os
 
+from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.mistralai import MistralAI
+from llama_index.llms.openai import OpenAI
 
 from utils.config_loader import load_config
 
@@ -27,10 +29,12 @@ from langchain.agents.agent_types import AgentType
 # LLAMA INDEX SUITE
 from llama_index.core import VectorStoreIndex, StorageContext, SimpleDirectoryReader, Settings
 
+load_dotenv(find_dotenv())
+
 config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
-LLM_MODEL = config['LLM']['LLM_MODEL']
+# LLM_MODEL = config['LLM']['LLM_MODEL']
 
 
 __template__ = """Answer the following questions as best you can. You have access to the following tools:
@@ -91,11 +95,12 @@ __template2__ = """You are an assistant designed to guide users through a struct
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
 
-def load_sidebar():
-    with st.sidebar:
-        st.header("Parameters")
-        st.sidebar.checkbox("Azure", LLM_MODEL == "AZURE", disabled=True)
-        st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
+# def load_sidebar():
+#     with st.sidebar:
+#         st.header("Parameters")
+#         st.sidebar.checkbox("Azure", LLM_MODEL == "AZURE", disabled=True)
+#         st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
+#         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
 
 
 from llama_index.llms.mistralai import MistralAI
@@ -105,9 +110,9 @@ from llama_index.embeddings.mistralai import MistralAIEmbedding
 @st.cache_resource(ttl="1h")
 def configure_agent(model_name, advanced_rag = None):
 
-    load_dotenv(find_dotenv())
+    # load_dotenv(find_dotenv())
     # Set OpenAI API key from Streamlit secrets
-    openai_api_key = os.getenv('OPENAI_API_KEY')
+    # openai_api_key = os.getenv('OPENAI_API_KEY')
 
     ## LLAMA
     loader = SimpleDirectoryReader(input_dir=f"data/sources/pdf/", recursive=True, required_exts=[".pdf"])
@@ -115,11 +120,17 @@ def configure_agent(model_name, advanced_rag = None):
 
     # nltk.download('averaged_perceptron_tagger')
     agent_li = None
-    # llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
-    llm = MistralAI() # not working yet as utilrags use OpenAIAgent.from_tools method
+    llm = None
+    embed_model = None
+    if model_name.startswith("gpt"):
+        llm = OpenAI(model=model_name, temperature=0.1)
+        embed_model = OpenAIEmbedding()
+    if model_name.startswith("mistral"):
+        llm = MistralAI(model=model_name, temperature=0.1) # not working yet as utilrags use OpenAIAgent.from_tools method
+        embed_model = MistralAIEmbedding()
 
     Settings.llm = llm
-    Settings.embed_model = MistralAIEmbedding()
+    Settings.embed_model = embed_model
 
     if advanced_rag == "sentence_window":
 
@@ -157,7 +168,7 @@ def configure_agent(model_name, advanced_rag = None):
 
     lc_tools = [
         Tool(
-            name=f"LlamaIndex RAG",
+            name=f"LlamaIndex RAG Agent",
             func=agent_li.chat,
             description=f"""Useful when you need to answer questions. "
                         "DO NOT USE MULTI-ARGUMENTS INPUT.""",
@@ -182,30 +193,42 @@ def main():
 
     st.title("📄Chat with Doc 🤗")
 
-    load_sidebar()
+    # load_sidebar()
+    #st.sidebar.checkbox("Azure", LLM_MODEL == "AZURE", disabled=True)
+    LLM_MODEL = st.sidebar.radio("LLM Provider", ["OPENAI", "MISTRAL"], index=1)
 
     # for openai only
-    model_name = st.sidebar.radio("Model", ["gpt-3.5-turbo", "gpt-4"],
-                                  captions=["GPT 3.5 Turbo", "GPT 4"],
+    model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
+                                  captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
                                   index=0, disabled=LLM_MODEL != "OPENAI")
 
-    template = st.sidebar.text_area("Prompt", __template2__)
+    model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
+                                  captions=["Mistral 7b", "Mixtral", "Mistral Large"],
+                                  index=2, disabled=LLM_MODEL != "MISTRAL")
 
-    st.sidebar.subheader("RAG params")
+    model_name = None
+    if LLM_MODEL == "MISTRAL":
+        model_name = model_name_gpt
+    elif LLM_MODEL == "OPENAI":
+        model_name = model_name_mistral
+
+    # template = st.sidebar.text_area("Prompt", __template2__)
+
+    st.sidebar.subheader("RAG Agent params")
     advanced_rag = st.sidebar.radio("Advanced RAG (Llamaindex)", ["direct_query", "subquery", "automerging",
                                                                   "sentence_window"])
 
-    chain_type = st.sidebar.radio("Chain type",
-                                  ["stuff", "map_reduce", "refine", "map_rerank"])
+    # chain_type = st.sidebar.radio("Chain type (LangChain)",
+    #                               ["stuff", "map_reduce", "refine", "map_rerank"])
+    #
+    # st.sidebar.subheader("Search params (LangChain)")
+    # k = st.sidebar.slider('Number of relevant chunks', 1, 10, 4, 1)
+    #
+    # search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
+    #                                                "similarity_score_threshold"])
 
-    st.sidebar.subheader("Search params")
-    k = st.sidebar.slider('Number of relevant chunks', 1, 10, 4, 1)
-
-    search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
-                                                   "similarity_score_threshold"])
-
-    st.sidebar.subheader("Chain params")
-    verbose = st.sidebar.checkbox("Verbose")
+    # st.sidebar.subheader("Chain params")
+    # verbose = st.sidebar.checkbox("Verbose")
 
     # llm = load_model(model_name)
 
