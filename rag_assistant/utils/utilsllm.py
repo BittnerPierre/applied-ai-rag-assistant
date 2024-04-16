@@ -21,7 +21,7 @@ openai.api_key = os.environ['OPENAI_API_KEY']
 mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 
-def load_model(model: str = None):
+def load_model():
     model = config['LLM']['LLM_MODEL']
     if model == "AZURE":
         llm = AzureChatOpenAI(
@@ -43,7 +43,7 @@ def load_model(model: str = None):
     return llm
 
 
-def load_client(model: str = None):
+def load_client():
     model = config['LLM']['LLM_MODEL']
     if model == "AZURE":
         client = AzureOpenAI(

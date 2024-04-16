@@ -3,11 +3,8 @@ from json import JSONDecodeError
 import streamlit as st
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import ToolException, Tool
-# from openai import OpenAI
-import os
 
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.mistralai import MistralAI
 from llama_index.llms.openai import OpenAI
 
 from utils.config_loader import load_config
@@ -15,26 +12,20 @@ from utils.config_loader import load_config
 from utils.utilsrag import create_sentence_window_agent, create_automerging_agent, \
     create_subquery_agent, create_direct_query_agent
 
-from utils.utilsllm import load_embeddings, load_model
+from utils.utilsllm import load_model
 
 from dotenv import load_dotenv, find_dotenv
 
-# LLAMAINDEX
-import chromadb
+from langchain.agents import create_react_agent, AgentExecutor
 
-
-from langchain.agents import initialize_agent, create_react_agent, AgentExecutor
-from langchain.agents.agent_types import AgentType
-
-# LLAMA INDEX SUITE
-from llama_index.core import VectorStoreIndex, StorageContext, SimpleDirectoryReader, Settings
+from llama_index.core import SimpleDirectoryReader, Settings
 
 load_dotenv(find_dotenv())
 
 config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
-# LLM_MODEL = config['LLM']['LLM_MODEL']
+LLM_MODEL = config['LLM']['LLM_MODEL']
 
 
 __template__ = """Answer the following questions as best you can. You have access to the following tools:
@@ -95,12 +86,12 @@ __template2__ = """You are an assistant designed to guide users through a struct
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
 
-# def load_sidebar():
-#     with st.sidebar:
-#         st.header("Parameters")
-#         st.sidebar.checkbox("Azure", LLM_MODEL == "AZURE", disabled=True)
-#         st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
-#         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
+def load_sidebar():
+    with st.sidebar:
+        st.header("Parameters")
+        st.sidebar.subheader("LangChain model provider")
+        st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
+        st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
 
 
 from llama_index.llms.mistralai import MistralAI
@@ -110,15 +101,10 @@ from llama_index.embeddings.mistralai import MistralAIEmbedding
 @st.cache_resource(ttl="1h")
 def configure_agent(model_name, advanced_rag = None):
 
-    # load_dotenv(find_dotenv())
-    # Set OpenAI API key from Streamlit secrets
-    # openai_api_key = os.getenv('OPENAI_API_KEY')
-
-    ## LLAMA
+    ## START LLAMAINDEX
     loader = SimpleDirectoryReader(input_dir=f"data/sources/pdf/", recursive=True, required_exts=[".pdf"])
     all_docs = loader.load_data()
 
-    # nltk.download('averaged_perceptron_tagger')
     agent_li = None
     llm = None
     embed_model = None
@@ -126,7 +112,7 @@ def configure_agent(model_name, advanced_rag = None):
         llm = OpenAI(model=model_name, temperature=0.1)
         embed_model = OpenAIEmbedding()
     if model_name.startswith("mistral"):
-        llm = MistralAI(model=model_name, temperature=0.1) # not working yet as utilrags use OpenAIAgent.from_tools method
+        llm = MistralAI(model=model_name, temperature=0.1)
         embed_model = MistralAIEmbedding()
 
     Settings.llm = llm
@@ -175,9 +161,11 @@ def configure_agent(model_name, advanced_rag = None):
             handle_tool_error=_handle_error,
         ),
     ]
+    ## END LLAMAINDEX
 
-    ## END LLAMA
-    llm_agent = load_model(model_name)
+    ## START LANGCHAIN
+    # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
+    llm_agent = load_model()
 
     agent = create_react_agent(
         llm=llm_agent,
@@ -185,7 +173,8 @@ def configure_agent(model_name, advanced_rag = None):
         prompt=PromptTemplate.from_template(__template__)
     )
 
-    agent_executor = AgentExecutor(agent=agent, tools=lc_tools)
+    agent_executor = AgentExecutor(agent=agent, tools=lc_tools, handle_parsing_errors=True)
+    ## END LANGCHAIN
     return agent_executor
 
 
@@ -193,23 +182,24 @@ def main():
 
     st.title("📄Chat with Doc 🤗")
 
-    # load_sidebar()
-    #st.sidebar.checkbox("Azure", LLM_MODEL == "AZURE", disabled=True)
-    LLM_MODEL = st.sidebar.radio("LLM Provider", ["OPENAI", "MISTRAL"], index=1)
+    load_sidebar()
 
+    agent_model = st.sidebar.radio("RAG Agent Provider", ["OPENAI", "MISTRAL"], index=1)
+
+    st.sidebar.subheader("RAG Agent Model")
     # for openai only
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
                                   captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
-                                  index=0, disabled=LLM_MODEL != "OPENAI")
+                                  index=0, disabled=agent_model != "OPENAI")
 
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
                                   captions=["Mistral 7b", "Mixtral", "Mistral Large"],
-                                  index=2, disabled=LLM_MODEL != "MISTRAL")
+                                  index=2, disabled=agent_model != "MISTRAL")
 
     model_name = None
-    if LLM_MODEL == "MISTRAL":
+    if agent_model == "MISTRAL":
         model_name = model_name_gpt
-    elif LLM_MODEL == "OPENAI":
+    elif agent_model == "OPENAI":
         model_name = model_name_mistral
 
     # template = st.sidebar.text_area("Prompt", __template2__)
@@ -218,6 +208,7 @@ def main():
     advanced_rag = st.sidebar.radio("Advanced RAG (Llamaindex)", ["direct_query", "subquery", "automerging",
                                                                   "sentence_window"])
 
+    ## OLD STUFF WITH LANGCHAIN, COMMENTED TO FOCUS ON LLAMAINDEX AGENT
     # chain_type = st.sidebar.radio("Chain type (LangChain)",
     #                               ["stuff", "map_reduce", "refine", "map_rerank"])
     #
@@ -226,11 +217,6 @@ def main():
     #
     # search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
     #                                                "similarity_score_threshold"])
-
-    # st.sidebar.subheader("Chain params")
-    # verbose = st.sidebar.checkbox("Verbose")
-
-    # llm = load_model(model_name)
 
     agent = configure_agent(model_name, advanced_rag)
 
@@ -254,13 +240,8 @@ def main():
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
-            # store: VectorStore = get_store(embeddings)
-
-            #output = agent.chat(prompt).response
 
             response = agent.invoke({"input": prompt})
-            #output = agent.run(prompt)
-            # output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
 
             st.write(response['output'])
             st.session_state.messages.append({"role": "assistant", "content": response['output']})

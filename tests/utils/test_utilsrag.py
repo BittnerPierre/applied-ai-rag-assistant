@@ -54,7 +54,7 @@ qa_relevance = (
 )
 
 qs_relevance = (
-    Feedback(openai.relevance_with_cot_reasons, name = "Context Relevance")
+    Feedback(openai.relevance_with_cot_reasons, name="Context Relevance")
     .on_input()
     .on(TruLlama.select_source_nodes().node.text)
     .aggregate(np.mean)
@@ -71,6 +71,7 @@ groundedness = (
 
 feedbacks = [qa_relevance, qs_relevance, groundedness]
 
+
 def get_prebuilt_trulens_recorder(query_engine, app_id):
     tru_recorder = TruLlama(
         query_engine,
@@ -80,22 +81,15 @@ def get_prebuilt_trulens_recorder(query_engine, app_id):
     return tru_recorder
 
 
-
-from llama_index.llms.openai import OpenAI
-
 @pytest.fixture(scope="module")
 def temp_dir(request):
     # Setup: Create a temporary directory for the test module
-    #dir_name = "data/cache/test_llama_index"
     dir_name = utilsrag.llama_index_root_dir
     os.makedirs(dir_name, exist_ok=True)
     shutil.rmtree(dir_name)
-    # original_llama_index_root_dir = utilsrag.llama_index_root_dir
-    # utilsrag.llama_index_root_dir = dir_name
     # Yield the directory name to the tests
     yield dir_name
 
-    # utilsrag.llama_index_root_dir = original_llama_index_root_dir
     # Teardown: Remove the temporary directory after tests are done
     shutil.rmtree(dir_name)
 
@@ -105,7 +99,7 @@ def llm_prepare():
     # llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
     # embed_model = OpenAIEmbedding()
     llm = MistralAI()
-    embed_model =  MistralAIEmbedding()
+    embed_model = MistralAIEmbedding()
 
     # llm = MistralAI()
     Settings.llm = llm
@@ -153,8 +147,6 @@ def test_automerging_engine(temp_dir, llm_prepare, docs_prepare, eval_questions_
             response = query_engine.query(question)
             assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
-    # print(trulens_prepare.get_leaderboard(app_ids=[]))
-
 
 def test_automerging_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
 
@@ -168,14 +160,10 @@ def test_automerging_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_p
     assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
 
-
-
 def test_sentence_window_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
 
     query_engine = create_sentence_window_engine(
         docs_prepare,
-        # llm_prepare,
-        # embed_model="local:BAAI/bge-small-en-v1.5"
     )
 
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
@@ -199,8 +187,6 @@ def test_llamaindex_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_pr
 
     query_engine = create_direct_query_engine(
         docs_prepare,
-        # llm_prepare,
-        # embed_model="local:BAAI/bge-small-en-v1.5"
     )
 
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
@@ -224,8 +210,6 @@ def test_subquery_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prep
     query_engine = create_subquery_engine(
         topics,
         docs_prepare,
-        # llm_prepare,
-        # embed_model="local:BAAI/bge-small-en-v1.5"
     )
 
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
