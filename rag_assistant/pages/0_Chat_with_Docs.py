@@ -224,11 +224,24 @@ def handle_assistant_response(user_query):
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
 
-    st.session_state.feedback = streamlit_feedback(feedback_type = "thumbs",
+        #logger.info("This is a test log message")
+
+    feedback = streamlit_feedback(feedback_type = "thumbs",
                                  optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
-    if st.session_state.feedback:
-        score = "+1" if feedback[0] == "👍" else "-1"
-        logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback[1]}")
+    # if feedback in st.session_state:
+    #     feedback = st.session_state.feedback
+    # feedback = st.session_state.feedback
+    # print("Feedback:", feedback)
+    #print("Value of feedback:", feedback)
+    if feedback:
+        print("Feedback:", feedback)
+        score = "+1" if feedback == "👍" else "-1"
+        feedback_text = ""
+        if max_text_length:
+            feedback_text = feedback.get("text", "")[:max_text_length]
+        log_message = f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback_text}"
+        print("Log message:", log_message)
+        logger.info(log_message)
     
     # print("Feedback:", feedback)
 
