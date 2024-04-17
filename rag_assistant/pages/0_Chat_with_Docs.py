@@ -16,6 +16,30 @@ from dotenv import load_dotenv, find_dotenv
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
+import logging
+
+
+
+# set logging
+logger = logging.getLogger('AI_assistant_feedback')
+logger.setLevel(logging.INFO)
+
+# Check if the directory exists, if not create it
+log_dir = "./logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Create a file handler for the logger
+handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
+handler.setLevel(logging.INFO)
+
+# Create a logging format
+formatter = logging.Formatter('%(asctime)s -  %(message)s')
+handler.setFormatter(formatter) # Add the formatter to the handler  
+
+# Add the handler to the logger
+logger.addHandler(handler)
+
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
@@ -156,6 +180,7 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
 )
+
 qa_chain = ConversationalRetrievalChain.from_llm(
     llm, retriever=retriever, memory=memory, verbose=True
 )
@@ -198,8 +223,63 @@ def handle_assistant_response(user_query):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-        feedback = streamlit_feedback(feedback_type = "thumbs",
-                               optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
+
+    st.session_state.feedback = streamlit_feedback(feedback_type = "thumbs",
+                                 optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
+    if st.session_state.feedback:
+        score = "+1" if feedback[0] == "👍" else "-1"
+        logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback[1]}")
+    
+    # print("Feedback:", feedback)
+
+        # col1, col2 = st.columns(2)
+        # with col1:
+        #     if st.button(":thumbsup:", key="like_button"):
+        #         Score = "+1"
+        #         logger.info(f"Score: {Score}, Question: {user_query}, Answer: {response}")
+        # with col2: 
+        #     if st.button(":thumbsdown:", key="dislike_button"):
+        #         Score = "-1"
+        #         logger.info(f"Score: {Score}, Question: {user_query}, Answer: {response}")
+
+
+
+        # # Log user's feedback
+        # if feedback == "👍":
+        #     score = "+1"
+        # elif feedback == "👎":
+        #     score = "-1"
+        # else:
+        #     score = "0"
+
+
+        # if feedback is not None:
+        #     feedback_text = feedback[0]  # Assuming the feedback is captured as the first element of the returned tuple
+        #     # Process the feedback as needed
+        #     logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback_text}")
+        # else:
+        #     logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: None")
+
+        
+
+        # Log user's feedback
+        # if feedback == "👍":
+        #     score = "+1"
+        # elif feedback == "👎":
+        #     score = "-1"
+        # else:
+        #     score = "0"
+        # print("Score:", score)
+
+        # #user_feedback = st.text_input("Feedback", "")
+        # logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback}")
+
+        # # Handle positive/negative feedback
+        # if feedback == "👍":
+        #     st.write("Great! I'm glad I could help.")
+        # elif feedback == "👎":
+        #     st.write("We'll try to improve our answers!")
+
         # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
         # if feedback == "👍":
         #     st.write("Great! I'm glad I could help.")
@@ -224,6 +304,9 @@ if "user_query" in st.session_state:
     st.session_state.pop("user_query")  # Clear the session state
     st.chat_message("user").write(user_query)
     handle_assistant_response(user_query)
+    # feedback = streamlit_feedback(feedback_type = "thumbs",
+    #                             optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
+    # print("Feedback:", feedback)
 
 
 #Handle user queries
