@@ -105,17 +105,14 @@ def configure_retriever(pdf_files_paths):
 
 
 def _submit_feedback(user_response, emoji=None):
-    print("Feedback-:", user_response)
-    #st.toast(f"Feedback submitted: {user_response}", icon=emoji)
-    print("Feedback-:", user_response)
-    return user_response.update({"some metadata": 123})
+    st.toast(f"Feedback submitted: {user_response['score']} {user_response['text']}", icon=emoji)
+    return user_response
 
 def handle_assistant_response(user_query):
     with st.chat_message("Assistant"):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
-        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-        print("Response:", response)
+        qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
 
 
 class StreamHandler(BaseCallbackHandler):
@@ -200,14 +197,13 @@ avatars = {"human": "user", "ai": "assistant"}
 for i, msg in enumerate(msgs.messages):
     st.chat_message(avatars[msg.type]).write(msg.content)
     if msg.type == "ai" :
-        if feedback := streamlit_feedback(feedback_type = "thumbs",
+        streamlit_feedback(feedback_type = "thumbs",
                                  optional_text_label="[Optional]Est ce que cette reponse vous convient ?",
-                                 key=f"feedback_{i}"):
-            print("Feedback:", feedback)
+                                 key=f"feedback_{i}",
+                                 on_submit=_submit_feedback)
 
 # Handle suggested questions
 if "user_query" in st.session_state:
-    print("On Passe ici : 1")
     user_query = st.session_state.user_query
     st.session_state.pop("user_query")  # Clear the session state
     st.chat_message("user").write(user_query)
@@ -220,3 +216,4 @@ if user_query := st.chat_input(placeholder="Ask me anything!"):
     st.chat_message("user").write(user_query)
     # Call the function to handle assistant response
     handle_assistant_response(user_query)
+    st.rerun()
