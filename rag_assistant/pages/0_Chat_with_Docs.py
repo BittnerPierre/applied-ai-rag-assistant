@@ -102,32 +102,16 @@ __template2__ = """You are an assistant designed to guide software application a
 
 @st.cache_resource(ttl="1h")
 def configure_retriever(pdf_files_paths):
-    # Read documents
-    # docs = []
-    # for file_path in pdf_files_paths:
-    #     loader = PyPDFLoader(file_path)
-    #     docs.extend(loader.load())
-    #
-    # # Split documents
-    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-    # splits = text_splitter.split_documents(docs)
-    #
-    # # Create embeddings and store in vectordb
-    # embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    # persist_directory = "data/chroma/"
-    # vectordb = Chroma.from_documents(
-    #     documents=splits,
-    #     embedding=embedding,
-    #     persist_directory=persist_directory
-    # )
-
-    # Define retriever
     vectordb = get_store()
 
     retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
 
     return retriever
 
+
+def _submit_feedback(user_response, emoji=None):
+    st.toast(f"Feedback submitted: {user_response['score']} {user_response['text']}, ", icon=emoji)
+    return user_response
 
 class StreamHandler(BaseCallbackHandler):
     def __init__(self, container: st.delta_generator.DeltaGenerator, initial_text: str = "", initial_system_prompt: str = ""):
@@ -225,23 +209,21 @@ def handle_assistant_response(user_query):
         response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
 
         #logger.info("This is a test log message")
-
-    feedback = streamlit_feedback(feedback_type = "thumbs",
-                                 optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
+ 
     # if feedback in st.session_state:
     #     feedback = st.session_state.feedback
     # feedback = st.session_state.feedback
     # print("Feedback:", feedback)
     #print("Value of feedback:", feedback)
-    if feedback:
-        print("Feedback:", feedback)
-        score = "+1" if feedback == "👍" else "-1"
-        feedback_text = ""
-        if max_text_length:
-            feedback_text = feedback.get("text", "")[:max_text_length]
-        log_message = f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback_text}"
-        print("Log message:", log_message)
-        logger.info(log_message)
+    # if feedback:
+    #     print("Feedback:", feedback)
+    #     score = "+1" if feedback == "👍" else "-1"
+    #     feedback_text = ""
+    #     if max_text_length:
+    #         feedback_text = feedback.get("text", "")[:max_text_length]
+    #     log_message = f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback_text}"
+    #     print("Log message:", log_message)
+    #     logger.info(log_message)
     
     # print("Feedback:", feedback)
 
@@ -305,11 +287,46 @@ def handle_assistant_response(user_query):
         #     if st.button(":thumbsdown:", key="dislike_button"):
         #         # Handle negative feedback (dislike)
         #         st.write("We'll try to improve our answers!")
+# avatars = {"human": "user", "ai": "assistant"}
+# if "messages" not in st.session_state:
+#     st.session_state["messages"] = [
+#         {"role": "ai", "content": "Bonjour! Comment puis-je vous aider?"}
+#     ]
+
+# messages = st.session_state.messages
+
+# for i, msg in enumerate(messages):
+#     st.chat_message(avatars[msg["role"]]).write(msg["content"])
+
+#     if msg["role"] == "ai" and i > 1:
+#         feedback_key = f"feedback_{int(i)/2}"
+
+#         if feedback_key not in st.session_state:
+#             st.session_state[feedback_key] = None
+
+#             feedback = streamlit_feedback(feedback_type="thumbs", 
+#             optional_text_label="[Optional]Est ce que cette reponse vous convient ?",
+#             on_submit = _submit_feedback,
+#             key=feedback_key)
+#             print("Feedback:", feedback)
+
+
+
+
+
+
 
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
-for msg in msgs.messages:
+for i, msg in enumerate(msgs.messages):
     st.chat_message(avatars[msg.type]).write(msg.content)
+    if msg.type == "ai":
+        feedback = streamlit_feedback(feedback_type = "thumbs", 
+                                optional_text_label="[Optional]Est ce que cette reponse vous convient ?",
+                                key=f"feedback_{i}",
+                                on_submit = _submit_feedback
+                                )
+        print("Feedback:", feedback)
 
 # Handle suggested questions
 if "user_query" in st.session_state:
@@ -320,6 +337,7 @@ if "user_query" in st.session_state:
     # feedback = streamlit_feedback(feedback_type = "thumbs",
     #                             optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
     # print("Feedback:", feedback)
+    st.rerun()
 
 
 #Handle user queries
@@ -327,3 +345,4 @@ if user_query := st.chat_input(placeholder="Ask me anything!"):
     st.chat_message("user").write(user_query)
     # Call the function to handle assistant response
     handle_assistant_response(user_query)
+    st.rerun()
