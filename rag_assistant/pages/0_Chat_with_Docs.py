@@ -1,17 +1,11 @@
 
 import os
-import openai
-import tempfile
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
-from langchain.document_loaders import PyPDFLoader
+from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
-from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chains import ConversationalRetrievalChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
 from dotenv import load_dotenv, find_dotenv
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
@@ -102,31 +96,26 @@ __template2__ = """You are an assistant designed to guide software application a
 
 @st.cache_resource(ttl="1h")
 def configure_retriever(pdf_files_paths):
-    # Read documents
-    # docs = []
-    # for file_path in pdf_files_paths:
-    #     loader = PyPDFLoader(file_path)
-    #     docs.extend(loader.load())
-    #
-    # # Split documents
-    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-    # splits = text_splitter.split_documents(docs)
-    #
-    # # Create embeddings and store in vectordb
-    # embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    # persist_directory = "data/chroma/"
-    # vectordb = Chroma.from_documents(
-    #     documents=splits,
-    #     embedding=embedding,
-    #     persist_directory=persist_directory
-    # )
-
     # Define retriever
     vectordb = get_store()
 
     retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
 
     return retriever
+
+
+def _submit_feedback(user_response, emoji=None):
+    print("Feedback-:", user_response)
+    #st.toast(f"Feedback submitted: {user_response}", icon=emoji)
+    print("Feedback-:", user_response)
+    return user_response.update({"some metadata": 123})
+
+def handle_assistant_response(user_query):
+    with st.chat_message("Assistant"):
+        retrieval_handler = PrintRetrievalHandler(st.container())
+        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
+        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+        print("Response:", response)
 
 
 class StreamHandler(BaseCallbackHandler):
@@ -192,20 +181,9 @@ suggested_questions = [
     "Comment assurez l'efficacité des performances ?",
 ]
 
-# # Function to hide suggested questions after user interaction
-# def hide_suggested_questions():
-#     for i in range(1, len(suggested_questions) + 1):
-#         st.session_state[f"suggested_question_{i}_hidden"] = True
-
-# # Check if user interacted with previous turn (button click or input)
-# if st.session_state.get("user_interacted", False):
-#     hide_suggested_questions()
-#     st.session_state.pop("user_interacted")  # Reset flag for next turn
-
 # Display "How can I help you?" message followed by suggested questions
 with st.chat_message("assistant"):
     st.write("Comment puis-je vous aider?")
-
 
 
 # Display suggested questions in a 2x2 table
@@ -217,100 +195,28 @@ for i, question in enumerate(suggested_questions, start=1):
             st.session_state.user_query = question
             # st.session_state["user_interacted"] = True # Set flag to indicate user interaction
 
-
-def handle_assistant_response(user_query):
-    with st.chat_message("Assistant"):
-        retrieval_handler = PrintRetrievalHandler(st.container())
-        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
-        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-
-    st.session_state.feedback = streamlit_feedback(feedback_type = "thumbs",
-                                 optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
-    if st.session_state.feedback:
-        score = "+1" if feedback[0] == "👍" else "-1"
-        logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback[1]}")
-    
-    # print("Feedback:", feedback)
-
-        # col1, col2 = st.columns(2)
-        # with col1:
-        #     if st.button(":thumbsup:", key="like_button"):
-        #         Score = "+1"
-        #         logger.info(f"Score: {Score}, Question: {user_query}, Answer: {response}")
-        # with col2: 
-        #     if st.button(":thumbsdown:", key="dislike_button"):
-        #         Score = "-1"
-        #         logger.info(f"Score: {Score}, Question: {user_query}, Answer: {response}")
-
-
-
-        # # Log user's feedback
-        # if feedback == "👍":
-        #     score = "+1"
-        # elif feedback == "👎":
-        #     score = "-1"
-        # else:
-        #     score = "0"
-
-
-        # if feedback is not None:
-        #     feedback_text = feedback[0]  # Assuming the feedback is captured as the first element of the returned tuple
-        #     # Process the feedback as needed
-        #     logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback_text}")
-        # else:
-        #     logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: None")
-
-        
-
-        # Log user's feedback
-        # if feedback == "👍":
-        #     score = "+1"
-        # elif feedback == "👎":
-        #     score = "-1"
-        # else:
-        #     score = "0"
-        # print("Score:", score)
-
-        # #user_feedback = st.text_input("Feedback", "")
-        # logger.info(f"Score: {score}, Question: {user_query}, Answer: {response}, User Feedback: {feedback}")
-
-        # # Handle positive/negative feedback
-        # if feedback == "👍":
-        #     st.write("Great! I'm glad I could help.")
-        # elif feedback == "👎":
-        #     st.write("We'll try to improve our answers!")
-
-        # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
-        # if feedback == "👍":
-        #     st.write("Great! I'm glad I could help.")
-        # col1, col2 = st.columns(2)
-        # with col1:
-        #     if st.button(":thumbsup:", key="like_button"):
-        #         # Handle positive feedback (like)
-        #         st.write("Thanks for the feedback!")
-        # with col2: 
-        #     if st.button(":thumbsdown:", key="dislike_button"):
-        #         # Handle negative feedback (dislike)
-        #         st.write("We'll try to improve our answers!")
-
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
-for msg in msgs.messages:
+for i, msg in enumerate(msgs.messages):
     st.chat_message(avatars[msg.type]).write(msg.content)
+    if msg.type == "ai" :
+        if feedback := streamlit_feedback(feedback_type = "thumbs",
+                                 optional_text_label="[Optional]Est ce que cette reponse vous convient ?",
+                                 key=f"feedback_{i}"):
+            print("Feedback:", feedback)
 
 # Handle suggested questions
 if "user_query" in st.session_state:
+    print("On Passe ici : 1")
     user_query = st.session_state.user_query
     st.session_state.pop("user_query")  # Clear the session state
     st.chat_message("user").write(user_query)
     handle_assistant_response(user_query)
-    # feedback = streamlit_feedback(feedback_type = "thumbs",
-    #                             optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
-    # print("Feedback:", feedback)
 
 
 #Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
+    print("On passe ici avec la user_query", user_query)
     st.chat_message("user").write(user_query)
     # Call the function to handle assistant response
     handle_assistant_response(user_query)
