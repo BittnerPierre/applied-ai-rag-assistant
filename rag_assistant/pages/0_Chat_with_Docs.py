@@ -102,10 +102,12 @@ def configure_retriever(pdf_files_paths):
 
     return retriever
 
-
 def _submit_feedback(user_response, emoji=None):
-    st.toast(f"Feedback submitted: {user_response['score']} {user_response['text']}", icon=emoji)
-    logger.info(f"Feedback: {user_response['score']} {user_response['text']}")
+    if user_response['score'] == '👍':
+        feedback_score = '+1'
+    else:
+        feedback_score = '-1'
+    logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
     return user_response
 
 
@@ -114,8 +116,7 @@ def handle_assistant_response(user_query):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         ai_response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-        logger.info(f"User Query: {user_query}")
-        logger.info(f"AI Response: {ai_response}")
+        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 
 class StreamHandler(BaseCallbackHandler):
