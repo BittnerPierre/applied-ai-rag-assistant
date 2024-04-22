@@ -53,3 +53,6 @@ default.sqlite
 /storage/AI
 /storage
 /data/cache
+
+/logs/
+feedback_database.db

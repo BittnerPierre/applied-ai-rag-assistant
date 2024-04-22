@@ -50,7 +50,7 @@ handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
 handler.setLevel(logging.INFO)
 
 # Create a logging format
-formatter = logging.Formatter('%(asctime)s -  %(name)s - %(levelname)s - %(user_id)s - %(session_id)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s -  %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter) # Add the formatter to the handler  
 
 # Add the handler to the logger
@@ -123,7 +123,7 @@ def configure_retriever(pdf_files_paths):
 
 def _submit_feedback(user_response, emoji=None):
     st.toast(f"Feedback submitted: {user_response['score']} {user_response['text']}", icon=emoji)
-    logger.info(f"Feedback: {user_response['score']} {user_response['text']}")
+    logger.info(f"Feedback: {user_response['text']}")
     return user_response
 
 
@@ -220,7 +220,7 @@ for i, msg in enumerate(msgs.messages):
         streamlit_feedback(feedback_type = "thumbs",
                                  optional_text_label="[Optional]Est ce que cette reponse vous convient?",
                                  key=f"feedback_{i}",
-                                 on_submit=lambda x: _submit_feedback(x, emoji="👍"))
+                                 on_submit=_submit_feedback)
 
 
 # Handle suggested questions§
