@@ -16,24 +16,6 @@ from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
 import logging
-import sqlite3
-
-# Set up database connection
-conn = sqlite3.connect("feedback_database.db")
-cursor = conn.cursor()
-
-# Create table for feedback and AI assistant response
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS feedback (
-        id INTEGER PRIMARY KEY,
-        user_id TEXT,
-        session_id TEXT,
-        feedback_text TEXT,
-        ai_response TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-""")
-
 
 
 # set logging
@@ -50,7 +32,7 @@ handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
 handler.setLevel(logging.INFO)
 
 # Create a logging format
-formatter = logging.Formatter('%(asctime)s -  %(name)s - %(levelname)s - %(user_id)s - %(session_id)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s -  %(message)s')
 handler.setFormatter(formatter) # Add the formatter to the handler  
 
 # Add the handler to the logger
@@ -132,8 +114,8 @@ def handle_assistant_response(user_query):
         retrieval_handler = PrintRetrievalHandler(st.container())
         stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
         ai_response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
-        #logger.info(f"AI Response: {ai_response}")
+        logger.info(f"User Query: {user_query}")
+        logger.info(f"AI Response: {ai_response}")
 
 
 class StreamHandler(BaseCallbackHandler):
@@ -236,4 +218,3 @@ if user_query := st.chat_input(placeholder="Ask me anything!"):
     st.chat_message("user").write(user_query)
     handle_assistant_response(user_query)
     st.rerun()
-
