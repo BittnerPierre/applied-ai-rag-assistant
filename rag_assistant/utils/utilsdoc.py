@@ -8,6 +8,7 @@ from langchain.text_splitter import TokenTextSplitter
 import shutil
 from PyPDF2 import PdfReader
 from langchain.docstore.document import Document
+from langchain_core.embeddings import Embeddings
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 import re
 import os
@@ -95,18 +96,20 @@ def empty_store(collection_name="Default") -> None:
     print(f"""Vector DB: {vectordb}""")
 
     if vectordb == "faiss":
-        raise Exception("Sorry, not implemented yet!")
+        raise NotImplementedError(f"Sorry, empty_store for {vectordb} not implemented yet!")
 
     elif vectordb == "chroma":
         persist_directory = config['VECTORDB']['chroma_persist_directory']
         persistent_client = chromadb.PersistentClient(path=persist_directory)
 
         persistent_client.delete_collection(name=collection_name)
+    else:
+        raise NotImplementedError(f"{vectordb} empty_store not implemented yet")
 
     pass
 
 
-def load_store(documents: list[Document], embeddings: OpenAIEmbeddings = None, collection_name=None, split=True):
+def load_store(documents: list[Document], embeddings: Embeddings = None, collection_name=None, split=True):
 
     vectordb = config['VECTORDB']['vectordb']
 
@@ -120,32 +123,30 @@ def load_store(documents: list[Document], embeddings: OpenAIEmbeddings = None, c
     if not collection_name:
         collection_name = config['VECTORDB']['collection_name']
 
+    db = None
+
     if vectordb == "faiss":
 
         index_dir = config['VECTORDB']['faiss_persist_directory']
 
         db = FAISS.from_documents(documents, embeddings)
 
-        index_file = f"{index_dir}/docs.index"
-        pkl_file = f"{index_dir}/faiss_store.pkl"
-        faiss.write_index(db.index, index_file)
-        db.index = None
-        with open(pkl_file, "wb") as f:
-            pickle.dump(db, f)
+        ## This is generating this error:
+        ## TypeError: cannot pickle '_thread.RLock' object
+        ## so moving to FAISS.load_local and
+        # index_file = f"{index_dir}/docs.index"
+        # pkl_file = f"{index_dir}/faiss_store.pkl"
+        # faiss.write_index(db.index, index_file)
+        # db.index = None
+        # with open(pkl_file, "wb") as f:
+        #    pickle.dump(db, f)
+        db.save_local(index_dir)
 
     elif vectordb == "chroma":
         persist_directory = config['VECTORDB']['chroma_persist_directory']
 
         persistent_client = chromadb.PersistentClient(path=persist_directory)
         collection = persistent_client.get_or_create_collection(name=collection_name)
-
-        # db = Chroma(persist_directory=persist_directory, embedding_function=_embeddings)
-
-        #collection.add(documents=docs)
-        # for doc in docs:
-        #     collection.add(
-        #         ids=[str(uuid.uuid1())], metadatas=doc.metadata, documents=doc.page_content
-        #     )
 
         # Create a list of unique ids for each document based on the content
         ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, doc.page_content)) for doc in documents]
@@ -167,11 +168,13 @@ def load_store(documents: list[Document], embeddings: OpenAIEmbeddings = None, c
             persist_directory=persist_directory
         )
         db.persist()
+    else:
+        raise NotImplementedError(f"{vectordb} load_store not implemented yet")
 
     return db
 
 
-def get_store(embeddings: OpenAIEmbeddings = None, collection_name=None):
+def get_store(embeddings: Embeddings = None, collection_name=None):
 
     vectordb = config['VECTORDB']['vectordb']
     print(f"""Vector DB: {vectordb}""")
@@ -182,15 +185,20 @@ def get_store(embeddings: OpenAIEmbeddings = None, collection_name=None):
     if not collection_name:
         collection_name = "Default"
 
+    db = None
+
     if vectordb == "faiss":
         index_dir = config['VECTORDB']['faiss_persist_directory']
 
-        #db = FAISS.from_documents(docs, _embeddings)
-
-        index_file = f"{index_dir}/docs.index"
-        pkl_file = f"{index_dir}/faiss_store.pkl"
-
-        raise Exception("Sorry, not implemented yet!")
+        ## add allow_dangerous_deserialisation=True to solve this error
+        ## "ValueError: The de-serialization relies loading a pickle file.
+        ## Pickle files can be modified to deliver a malicious payload that results in execution of arbitrary code on
+        ## your machine.You will need to set `allow_dangerous_deserialization` to `True`
+        ## to enable deserialization. If you do this, make sure that you trust the source of the data.
+        ## For example, if you are loading a file that you created, and no that no one else has modified the file,
+        ## then this is safe to do. Do not set this to `True`
+        ## if you are loading a file from an untrusted source (e.g., some random site on the internet.)."
+        db = FAISS.load_local(index_dir, embeddings, allow_dangerous_deserialization=True)
 
     elif vectordb == "chroma":
         persist_directory = config['VECTORDB']['chroma_persist_directory']
@@ -198,6 +206,8 @@ def get_store(embeddings: OpenAIEmbeddings = None, collection_name=None):
 
         print(f"""Persist Directory: {persist_directory}""")
         db = Chroma(client=persistent_client, collection_name=collection_name, embedding_function=embeddings)
+    else:
+        raise NotImplementedError(f"{vectordb} get_store not implemented yet")
 
     return db
 
@@ -231,6 +241,7 @@ def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata: dict
         return docs
     else:
         return None
+
 
 def load_text(txts: Union[list[UploadedFile], None, UploadedFile], metadata: dict={}):
     if txts is not None:

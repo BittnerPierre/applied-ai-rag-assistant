@@ -53,3 +53,4 @@ default.sqlite
 /storage/AI
 /storage
 /data/cache
+/data/faiss

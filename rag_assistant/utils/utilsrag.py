@@ -1,6 +1,7 @@
 from typing import Sequence, Optional
 
-from langchain_core.language_models import LLM
+from langchain_core.language_models import LLM, BaseChatModel
+from langchain_core.vectorstores import VectorStore
 from llama_index.core.agent.function_calling.base import FunctionCallingAgent
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from pydantic import BaseModel, Field
@@ -32,7 +33,7 @@ from llama_index.core.tools import QueryEngineTool, ToolMetadata
 from llama_index.core.query_engine import SubQuestionQueryEngine
 
 from llama_index.agent.openai import OpenAIAgent
-from llama_index.core.vector_stores.types import VectorStore
+#from llama_index.core.vector_stores.types import VectorStore
 
 from .config_loader import load_config
 
@@ -50,7 +51,7 @@ subquery_index_dir = config['LLAMA_INDEX']['SUBQUERY_INDEX_DIR']
 # https://python.langchain.com/docs/modules/chains/document/map_reduce
 # https://python.langchain.com/docs/modules/chains/document/refine
 # https://python.langchain.com/docs/modules/chains/document/map_rerank
-def invoke(question: str, template: str, llm: ChatOpenAI, chain_type: str, vectorstore: VectorStore,
+def invoke(question: str, template: str, llm: BaseChatModel, chain_type: str, vectorstore: VectorStore,
            search_type: str, k: int, verbose: bool):
 
     retriever = vectorstore.as_retriever(search_type=search_type, search_kwargs={'k': k})

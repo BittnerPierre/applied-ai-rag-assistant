@@ -31,8 +31,15 @@ llama-index-vector-stores-chroma = ">=0.1.6"
 llama-index-embeddings-huggingface = ">=0.1.6"
 nltk = ">=3.8.1"
 python-dotenv= ">=1.0.0"
-# was working with 0.4.3
-chromadb = "=0.4.22" # Must have "0.4.3"
+# There is a incompatibility issue with chroma and llamaindex
+# was working with 0.4.3 but it is no longer supporter by llamaidnex and there is incompatibility issue
+# newer version of chromadb raised "ModuleNotFoundError: No module named 'hnswlib'" in vector/local_hnsw.py", line 26
+# llama-index-vector-stores-chroma (0.1.6) depends on chromadb (>=0.4.22,<0.5.0)
+# at runtime
+# using FAISS for now as vectorstore
+chromadb = ">=0.4.22" # Must have "0.4.3"
+chroma-hnswlib = "0.7.3" # Must have "0.7.0"
+# chromadb  = "0.4.3" # Must have "0.4.3"
 PyPDF2 = ">=3.0.1"
 faiss-cpu = ">=1.8.0"
 wikipedia = ">=1.4.0"
@@ -42,8 +49,7 @@ trulens_eval = ">=0.27.0"
 mistralai = ">=0.1.8"
 llama-index-llms-mistralai = ">=0.1.10"
 llama-index-embeddings-mistralai = ">=0.1.4"
-# hnswlib = "0.7.0" # Must have "0.7.0"
-# chromadb  = "0.4.3" # Must have "0.4.3"
+
 # pysqlite3-binary = "^0.5.2.post3"
 langchain_mistralai = ">=0.1.0"
 

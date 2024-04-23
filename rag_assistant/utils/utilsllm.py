@@ -1,3 +1,5 @@
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models import BaseChatModel
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 import os
 from dotenv import load_dotenv, find_dotenv
@@ -21,7 +23,7 @@ openai.api_key = os.environ['OPENAI_API_KEY']
 mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 
-def load_model():
+def load_model() -> BaseChatModel:
     model = config['LLM']['LLM_MODEL']
     if model == "AZURE":
         llm = AzureChatOpenAI(
@@ -35,7 +37,7 @@ def load_model():
         llm = ChatOpenAI(model_name=model_name, temperature=0)
     elif model == "MISTRAL":
         model_name = config['MISTRAL']['CHAT_MODEL']
-        llm = ChatMistralAI(mistral_api_key=mistral_api_key, model= model_name)
+        llm = ChatMistralAI(mistral_api_key=mistral_api_key, model=model_name)
         # raise NotImplementedError(f"{model} Model not implemented yet.")
     else:
         raise NotImplementedError(f"Model {model} unknown.")
@@ -60,7 +62,7 @@ def load_client():
     return client
 
 
-def load_embeddings():
+def load_embeddings() -> Embeddings:
     model = config['LLM']['LLM_MODEL']
     if model == "AZURE":
         embeddings = AzureOpenAIEmbeddings(

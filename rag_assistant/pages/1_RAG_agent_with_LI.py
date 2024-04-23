@@ -97,14 +97,17 @@ def load_sidebar():
 from llama_index.llms.mistralai import MistralAI
 from llama_index.embeddings.mistralai import MistralAIEmbedding
 
+@st.cache_resource(ttl="1h")
+def load_doc():
+    loader = SimpleDirectoryReader(input_dir=f"data/sources/pdf/", recursive=True, required_exts=[".pdf"])
+    all_docs = loader.load_data()
+    return all_docs
 
 @st.cache_resource(ttl="1h")
 def configure_agent(model_name, advanced_rag = None):
+    all_docs = load_doc()
 
     ## START LLAMAINDEX
-    loader = SimpleDirectoryReader(input_dir=f"data/sources/pdf/", recursive=True, required_exts=[".pdf"])
-    all_docs = loader.load_data()
-
     agent_li = None
     llm = None
     embed_model = None
@@ -248,4 +251,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_doc()
     main()
