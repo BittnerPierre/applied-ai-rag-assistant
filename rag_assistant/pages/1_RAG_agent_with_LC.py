@@ -1,5 +1,13 @@
+from json import JSONDecodeError
+
 import streamlit as st
+from langchain.agents import initialize_agent, AgentType, AgentExecutor, create_react_agent
+from langchain.chains.retrieval_qa.base import RetrievalQA
+from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
+from langchain_core.documents import Document
+from langchain_core.prompts import PromptTemplate
+from langchain_core.tools import Tool, ToolException
 from langchain_core.vectorstores import VectorStore
 
 from utils.config_loader import load_config
@@ -85,55 +93,55 @@ def load_sidebar():
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
 
 
-# @st.cache_resource(ttl="1h")
-# def configure_agent(model_name, advanced_rag = None):
-#
-#     ## START LLAMAINDEX
-#     loader = DirectoryReader("data/sources/pdf/", globs="**/*.pdf")
-#     all_docs = loader.load_data()
-#
-#     def _handle_error(error: ToolException) -> str:
-#         if error == JSONDecodeError:
-#             return "Reformat in JSON and try again"
-#         elif error.args[0].startswith("Too many arguments to single-input tool"):
-#             return "Format in a SINGLE STRING. DO NOT USE MULTI-ARGUMENTS INPUT."
-#         return (
-#                 "The following errors occurred during tool execution:"
-#                 + error.args[0]
-#                 + "Please try another tool.")
-#
-#     lc_tools = [
-#         Tool(
-#             name=f"LlamaIndex RAG Agent",
-#             func=agent_li.chat,
-#             description=f"""Useful when you need to answer questions. "
-#                         "DO NOT USE MULTI-ARGUMENTS INPUT.""",
-#             handle_tool_error=_handle_error,
-#         ),
-#     ]
-#     ## END LLAMAINDEX
-#
-#     ## START LANGCHAIN
-#     # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
-#     llm_agent = load_model()
-#
-#     agent = create_react_agent(
-#         llm=llm_agent,
-#         tools=lc_tools,
-#         prompt=PromptTemplate.from_template(__template__)
-#     )
-#
-#     agent_executor = AgentExecutor(agent=agent, tools=lc_tools, handle_parsing_errors=True)
-#     ## END LANGCHAIN
-#     return agent_executor
-
-
 @st.cache_resource(ttl="1h")
-def load_doc():
+def load_doc() -> list[Document]:
     loader = PyPDFDirectoryLoader("data/sources/pdf/")
     all_docs = loader.load()
-    load_store(all_docs)
     return all_docs
+
+@st.cache_resource(ttl="1h")
+def configure_agent(model_name, chain_type=None, search_type="similarity", search_kwargs=None):
+    all_docs = load_doc()
+
+    embeddings_rag = load_embeddings(model_name)
+    db = load_store(all_docs, embeddings_rag)
+    retriever = db.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
+    llm_rag = load_model(model_name)
+
+    retrieval_qa_chain = RetrievalQA.from_chain_type(
+        llm=llm_rag, chain_type=chain_type, retriever=retriever
+    )
+
+    def _handle_error(error: ToolException) -> str:
+        if error == JSONDecodeError:
+            return "Reformat in JSON and try again"
+        elif error.args[0].startswith("Too many arguments to single-input tool"):
+            return "Format in a SINGLE STRING. DO NOT USE MULTI-ARGUMENTS INPUT."
+        return (
+                "The following errors occurred during tool execution:"
+                + error.args[0]
+                + "Please try another tool.")
+
+    lc_tools = [
+        Tool(
+            name=f"Langchain RAG Chain",
+            func=retrieval_qa_chain,
+            description=f"""Useful when you need to answer questions. "
+                        "DO NOT USE MULTI-ARGUMENTS INPUT.""",
+            handle_tool_error=_handle_error,
+        ),
+    ]
+    ## START LANGCHAIN
+    # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
+    llm_agent = load_model()
+    agent = create_react_agent(
+        llm=llm_agent,
+        tools=lc_tools,
+        prompt=PromptTemplate.from_template(__template__)
+    )
+    agent_executor = AgentExecutor(agent=agent, tools=lc_tools, handle_parsing_errors=True)
+    ## END LANGCHAIN
+    return agent_executor
 
 
 def main():
@@ -142,7 +150,7 @@ def main():
 
     load_sidebar()
 
-    agent_model = st.sidebar.radio("RAG Agent Provider", ["OPENAI", "MISTRAL"], index=1)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=1)
 
     st.sidebar.subheader("RAG Agent Model")
     # for openai only
@@ -164,21 +172,21 @@ def main():
     embeddings = load_embeddings()
     llm = load_model()
 
-    template = st.sidebar.text_area("Prompt", __template2__)
+    # template = st.sidebar.text_area("Prompt", __template2__)
 
     ## OLD STUFF WITH LANGCHAIN, COMMENTED TO FOCUS ON LLAMAINDEX AGENT
     chain_type = st.sidebar.radio("Chain type (LangChain)",
                                   ["stuff", "map_reduce", "refine", "map_rerank"])
 
     st.sidebar.subheader("Search params (LangChain)")
-    k = st.sidebar.slider('Number of relevant chunks', 1, 10, 4, 1)
+    k = st.sidebar.slider('Number of relevant chunks', 2, 10, 4, 1)
 
     search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
-                                                   "similarity_score_threshold"])
+                                                    "similarity_score_threshold"])
 
-    # agent = configure_agent(model_name, advanced_rag)
+    agent = configure_agent(model_name, chain_type, search_type, {"k":k})
 
-    verbose = st.sidebar.checkbox("Verbose")
+    # verbose = st.sidebar.checkbox("Verbose")
 
     st.header("Question Answering Assistant")
 
@@ -203,12 +211,12 @@ def main():
 
             store: VectorStore = get_store(embeddings)
 
-            output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
+            # output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
 
-            # response = agent.invoke({"input": prompt})
+            response = agent.invoke({"input": prompt})
 
-            st.write(output)
-            st.session_state.messages.append({"role": "assistant", "content": output})
+            st.write(response['output'])
+            st.session_state.messages.append({"role": "assistant", "content": response['output']})
 
 
 if __name__ == "__main__":

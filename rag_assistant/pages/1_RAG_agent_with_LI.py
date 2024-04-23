@@ -10,7 +10,7 @@ from llama_index.llms.openai import OpenAI
 from utils.config_loader import load_config
 
 from utils.utilsrag import create_sentence_window_agent, create_automerging_agent, \
-    create_subquery_agent, create_direct_query_agent
+    create_subquery_agent, create_direct_query_agent, agent_lli_factory
 
 from utils.utilsllm import load_model
 
@@ -118,32 +118,11 @@ def configure_agent(model_name, advanced_rag = None):
         llm = MistralAI(model=model_name, temperature=0.1)
         embed_model = MistralAIEmbedding()
 
+    ## Settings seems to be the preferred version to setup llm and embeddings with latest LI API
     Settings.llm = llm
     Settings.embed_model = embed_model
 
-    if advanced_rag == "sentence_window":
-
-        name = "sentence_window_query_engine"
-        description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_li = create_sentence_window_agent(llm=llm, documents=all_docs, name=name, description=description)
-
-    elif advanced_rag == "automerging":
-
-        name = "automerging_query_engine"
-        description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_li = create_automerging_agent(llm=llm, documents=all_docs, name=name, description=description)
-
-    elif advanced_rag == "subquery":
-
-        name = "sub_question_query_engine"
-        description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_li = create_subquery_agent(llm=llm, topics=topics, documents=all_docs, name=name, description=description)
-
-    elif advanced_rag == "direct_query":
-
-        name = "direct_query_engine"
-        description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_li = create_direct_query_agent(llm=llm, documents=all_docs, name=name, description=description)
+    agent_lli = agent_lli_factory(advanced_rag=advanced_rag, llm=llm, documents=all_docs, topics=topics)
 
     def _handle_error(error: ToolException) -> str:
         if error == JSONDecodeError:
@@ -158,7 +137,7 @@ def configure_agent(model_name, advanced_rag = None):
     lc_tools = [
         Tool(
             name=f"LlamaIndex RAG Agent",
-            func=agent_li.chat,
+            func=agent_lli.chat,
             description=f"""Useful when you need to answer questions. "
                         "DO NOT USE MULTI-ARGUMENTS INPUT.""",
             handle_tool_error=_handle_error,
@@ -187,7 +166,7 @@ def main():
 
     load_sidebar()
 
-    agent_model = st.sidebar.radio("RAG Agent Provider", ["OPENAI", "MISTRAL"], index=1)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=1)
 
     st.sidebar.subheader("RAG Agent Model")
     # for openai only

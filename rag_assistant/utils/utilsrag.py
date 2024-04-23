@@ -516,6 +516,36 @@ def create_direct_query_engine(
     return query_engine
 
 
+def agent_lli_factory(advanced_rag: str, llm, documents, topics):
+
+    agent_lli = None
+    if advanced_rag == "sentence_window":
+
+        name = "sentence_window_query_engine"
+        description = f"useful for when you want to answer queries that require knowledge on {topics}"
+        agent_lli = create_sentence_window_agent(llm=llm, documents=documents, name=name, description=description)
+
+    elif advanced_rag == "automerging":
+
+        name = "automerging_query_engine"
+        description = f"useful for when you want to answer queries that require knowledge on {topics}"
+        agent_lli = create_automerging_agent(llm=llm, documents=documents, name=name, description=description)
+
+    elif advanced_rag == "subquery":
+
+        name = "sub_question_query_engine"
+        description = f"useful for when you want to answer queries that require knowledge on {topics}"
+        agent_lli = create_subquery_agent(llm=llm, topics=topics, documents=documents, name=name, description=description)
+
+    elif advanced_rag == "direct_query":
+
+        name = "direct_query_engine"
+        description = f"useful for when you want to answer queries that require knowledge on {topics}"
+        agent_lli = create_direct_query_agent(llm=llm, documents=documents, name=name, description=description)
+
+    return agent_lli
+
+
 def create_direct_query_agent(llm, documents: Sequence[Document], name:str, description: str, embed_model: str = "local:BAAI/bge-small-en-v1.5", query_engine: BaseQueryEngine = None):
 
     if query_engine is None:
@@ -537,7 +567,8 @@ def create_lli_agent(name:str, description: str, query_engine: BaseQueryEngine, 
             description=description,
         ),
     )
-    agent_li = FunctionCallingAgent.from_llm(tools=[query_engine_tool], llm=llm, verbose=True)
+    ## TODO NEW GENERIC VERSION TO CALL TOOL WITH LLAMAINDEX
     # agent_li = OpenAIAgent.from_tools(tools=[query_engine_tool], verbose=True)
     # MistralAIAgent.from_tools()
+    agent_li = FunctionCallingAgent.from_llm(tools=[query_engine_tool], llm=llm, verbose=True)
     return agent_li

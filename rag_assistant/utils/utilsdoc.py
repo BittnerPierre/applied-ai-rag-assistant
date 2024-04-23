@@ -1,4 +1,4 @@
-
+from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain_community.embeddings import OpenAIEmbeddings
 from typing import Union
 from langchain_community.vectorstores import FAISS
@@ -109,7 +109,7 @@ def empty_store(collection_name="Default") -> None:
     pass
 
 
-def load_store(documents: list[Document], embeddings: Embeddings = None, collection_name=None, split=True):
+def load_store(documents: list[Document], embeddings: Embeddings = None, collection_name=None, split=True) -> VectorStoreIndexWrapper:
 
     vectordb = config['VECTORDB']['vectordb']
 

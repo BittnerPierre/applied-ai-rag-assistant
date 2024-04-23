@@ -23,8 +23,15 @@ openai.api_key = os.environ['OPENAI_API_KEY']
 mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 
-def load_model() -> BaseChatModel:
-    model = config['LLM']['LLM_MODEL']
+def load_model(model_name: str = None) -> BaseChatModel:
+
+    if model_name is None:
+        model = config['LLM']['LLM_MODEL']
+    elif model_name.startswith("gpt"):
+        model = "OPENAI"
+    elif model_name.startswith("mistral"):
+        model = "MISTRAL"
+
     if model == "AZURE":
         llm = AzureChatOpenAI(
             openai_api_version=config['AZURE']['AZURE_OPENAI_API_VERSION'],
@@ -33,12 +40,13 @@ def load_model() -> BaseChatModel:
             api_key=os.environ["AZURE_OPENAI_API_KEY"]
         )
     elif model == "OPENAI":
-        model_name = config['OPENAI']['OPENAI_MODEL_NAME']
+        if model_name is None:
+            model_name = config['OPENAI']['OPENAI_MODEL_NAME']
         llm = ChatOpenAI(model_name=model_name, temperature=0)
     elif model == "MISTRAL":
-        model_name = config['MISTRAL']['CHAT_MODEL']
+        if model_name is None:
+            model_name = config['MISTRAL']['CHAT_MODEL']
         llm = ChatMistralAI(mistral_api_key=mistral_api_key, model=model_name)
-        # raise NotImplementedError(f"{model} Model not implemented yet.")
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
@@ -62,8 +70,15 @@ def load_client():
     return client
 
 
-def load_embeddings() -> Embeddings:
-    model = config['LLM']['LLM_MODEL']
+def load_embeddings(model_name: str = None) -> Embeddings:
+
+    if model_name is None:
+        model = config['LLM']['LLM_MODEL']
+    elif model_name.startswith("gpt"):
+        model = "OPENAI"
+    elif model_name.startswith("mistral"):
+        model = "MISTRAL"
+
     if model == "AZURE":
         embeddings = AzureOpenAIEmbeddings(
             azure_deployment=config['AZURE']['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'],
