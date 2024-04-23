@@ -1,4 +1,3 @@
-
 import os
 import openai
 import tempfile
@@ -16,6 +15,29 @@ from dotenv import load_dotenv, find_dotenv
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
+import logging
+
+
+# set logging
+logger = logging.getLogger('AI_assistant_feedback')
+logger.setLevel(logging.INFO)
+
+# Check if the directory exists, if not create it
+log_dir = "./logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Create a file handler for the logger
+handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
+handler.setLevel(logging.INFO)
+
+# Create a logging format
+formatter = logging.Formatter('%(asctime)s -  %(message)s')
+handler.setFormatter(formatter) # Add the formatter to the handler  
+
+# Add the handler to the logger
+logger.addHandler(handler)
+
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
@@ -23,8 +45,6 @@ collection_name = config['VECTORDB']['collection_name']
 st.set_page_config(page_title="Finaxys: Chat with Documents", page_icon="🦜")
 st.title("Finaxys: Chat with Documents")
 
-# Display the image icon along with the app title
-# st.image("/Users/loicsteve/Downloads/LOGO.b42ce8d.svg", use_column_width=True)
 
 # Define paths for PDF files
 pdf_files_paths = [
@@ -34,9 +54,7 @@ pdf_files_paths = [
     "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
     # Add more paths as needed
 ]
-# "data/sources/pdf/owasp/LLM_AI_Security_and_Governance_Checklist-v1_FR.pdf",
-# "data/sources/pdf/arxiv/2210.01241.pdf",
-# "data/sources/aws/waf/The_6_Pillars_of_the_AWS_Well-Architected_Framework.md",
+
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -78,31 +96,27 @@ __template2__ = """You are an assistant designed to guide software application a
 
 @st.cache_resource(ttl="1h")
 def configure_retriever(pdf_files_paths):
-    # Read documents
-    # docs = []
-    # for file_path in pdf_files_paths:
-    #     loader = PyPDFLoader(file_path)
-    #     docs.extend(loader.load())
-    #
-    # # Split documents
-    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-    # splits = text_splitter.split_documents(docs)
-    #
-    # # Create embeddings and store in vectordb
-    # embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    # persist_directory = "data/chroma/"
-    # vectordb = Chroma.from_documents(
-    #     documents=splits,
-    #     embedding=embedding,
-    #     persist_directory=persist_directory
-    # )
-
-    # Define retriever
     vectordb = get_store()
 
     retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
 
     return retriever
+
+def _submit_feedback(user_response, emoji=None):
+    if user_response['score'] == '👍':
+        feedback_score = '+1'
+    else:
+        feedback_score = '-1'
+    logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
+    return user_response
+
+
+def handle_assistant_response(user_query):
+    with st.chat_message("Assistant"):
+        retrieval_handler = PrintRetrievalHandler(st.container())
+        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
+        ai_response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
+        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 
 class StreamHandler(BaseCallbackHandler):
@@ -156,6 +170,7 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
 )
+
 qa_chain = ConversationalRetrievalChain.from_llm(
     llm, retriever=retriever, memory=memory, verbose=True
 )
@@ -167,21 +182,9 @@ suggested_questions = [
     "Comment assurez l'efficacité des performances ?",
 ]
 
-# # Function to hide suggested questions after user interaction
-# def hide_suggested_questions():
-#     for i in range(1, len(suggested_questions) + 1):
-#         st.session_state[f"suggested_question_{i}_hidden"] = True
-
-# # Check if user interacted with previous turn (button click or input)
-# if st.session_state.get("user_interacted", False):
-#     hide_suggested_questions()
-#     st.session_state.pop("user_interacted")  # Reset flag for next turn
-
 # Display "How can I help you?" message followed by suggested questions
 with st.chat_message("assistant"):
     st.write("Comment puis-je vous aider?")
-
-
 
 # Display suggested questions in a 2x2 table
 col1, col2 = st.columns(2)
@@ -190,44 +193,29 @@ for i, question in enumerate(suggested_questions, start=1):
         col = col1 if i % 2 != 0 else col2
         if col.button(question):
             st.session_state.user_query = question
-            # st.session_state["user_interacted"] = True # Set flag to indicate user interaction
 
-
-def handle_assistant_response(user_query):
-    with st.chat_message("Assistant"):
-        retrieval_handler = PrintRetrievalHandler(st.container())
-        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
-        response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-        feedback = streamlit_feedback(feedback_type = "thumbs",
-                               optional_text_label="[Optional]Est ce que cette reponse vous convient ?")
-        # feedback = st.radio("Does this answer suit you?", ("👍", "👎"))
-        # if feedback == "👍":
-        #     st.write("Great! I'm glad I could help.")
-        # col1, col2 = st.columns(2)
-        # with col1:
-        #     if st.button(":thumbsup:", key="like_button"):
-        #         # Handle positive feedback (like)
-        #         st.write("Thanks for the feedback!")
-        # with col2: 
-        #     if st.button(":thumbsdown:", key="dislike_button"):
-        #         # Handle negative feedback (dislike)
-        #         st.write("We'll try to improve our answers!")
 
 # Chat interface
 avatars = {"human": "user", "ai": "assistant"}
-for msg in msgs.messages:
+for i, msg in enumerate(msgs.messages):
     st.chat_message(avatars[msg.type]).write(msg.content)
+    if msg.type == "ai" :
+        streamlit_feedback(feedback_type = "thumbs",
+                                 optional_text_label="[Optional]Est ce que cette reponse vous convient?",
+                                 key=f"feedback_{i}",
+                                 on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
-# Handle suggested questions
+
+# Handle suggested questions§
 if "user_query" in st.session_state:
     user_query = st.session_state.user_query
     st.session_state.pop("user_query")  # Clear the session state
     st.chat_message("user").write(user_query)
     handle_assistant_response(user_query)
-
+    st.rerun()
 
 #Handle user queries
 if user_query := st.chat_input(placeholder="Ask me anything!"):
     st.chat_message("user").write(user_query)
-    # Call the function to handle assistant response
     handle_assistant_response(user_query)
+    st.rerun()
