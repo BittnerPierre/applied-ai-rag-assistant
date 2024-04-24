@@ -215,7 +215,7 @@ def test_subquery_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prep
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
                                                  app_id="Sub Query Engine")
 
-x    with tru_recorder as recording:
+    with tru_recorder as recording:
         for question in eval_questions_prepare:
             response = query_engine.query(question)
 

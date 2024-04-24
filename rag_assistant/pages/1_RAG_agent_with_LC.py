@@ -1,10 +1,10 @@
 from json import JSONDecodeError
 
 import streamlit as st
-from langchain.agents import AgentExecutor, create_react_agent
+from langchain.agents import AgentExecutor, create_react_agent, create_structured_chat_agent
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
 from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import Tool, ToolException
 
 from utils.config_loader import load_config
@@ -18,8 +18,7 @@ from dotenv import load_dotenv, find_dotenv
 from langchain_core.tracers.context import tracing_v2_enabled
 
 # EXTERNALISATION OF PROMPTS TO HAVE THEIR OWN VERSIONING
-from shared.rag_prompts import __template__
-
+from shared.rag_prompts import __template__, __structured_chat_agent__
 
 load_dotenv(find_dotenv())
 
@@ -29,6 +28,56 @@ app_name = config['DEFAULT']['APP_NAME']
 LLM_MODEL = config['LLM']['LLM_MODEL']
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
+
+
+system = '''Respond to the human as helpfully and accurately as possible. You have access to the following tools:
+
+    {tools}
+    
+    Use a json blob to specify a tool by providing an action key (tool name) and an action_input key (tool input).
+    
+    Valid "action" values: "Final Answer" or {tool_names}
+    
+    Provide only ONE action per $JSON_BLOB, as shown:
+    
+    ```
+    {{
+      "action": $TOOL_NAME,
+      "action_input": $INPUT
+    }}
+    ```
+    
+    Follow this format:
+    
+    Question: input question to answer
+    Thought: consider previous and subsequent steps
+    Action:
+    ```
+    $JSON_BLOB
+    ```
+    Observation: action result
+    ... (repeat Thought/Action/Observation N times)
+    Thought: I know what to respond
+    Action:
+    ```
+    {{
+      "action": "Final Answer",
+      "action_input": "Final response to human"
+    }}
+    
+    Begin! 
+    Reminder to ALWAYS respond with a valid json blob of a single action.
+     Use tools to retrieve relevant information. 
+     Do not respond directly to question. 
+     Format is Action:```$JSON_BLOB```then Observation'''
+
+human = '''{input}
+    
+    {agent_scratchpad}
+    
+    (reminder to respond in a JSON blob no matter what)'''
+
+
 
 def load_sidebar():
     with st.sidebar:
@@ -43,6 +92,7 @@ def load_doc() -> list[Document]:
     loader = PyPDFDirectoryLoader("data/sources/pdf/")
     all_docs = loader.load()
     return all_docs
+
 
 @st.cache_resource(ttl="1h")
 def configure_agent(model_name, chain_type=None, search_type="similarity", search_kwargs=None):
@@ -76,10 +126,17 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
     ## START LANGCHAIN
     # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
     llm_agent = load_model()
-    agent = create_react_agent(
+    # create_react_agent
+    agent = create_structured_chat_agent(
         llm=llm_agent,
         tools=lc_tools,
-        prompt=PromptTemplate.from_template(__template__)
+        prompt=ChatPromptTemplate.from_messages(
+                [
+                    ("system", system),
+                    MessagesPlaceholder("chat_history", optional=True),
+                    ("human", human),
+                ]
+            )
     )
 
     #
@@ -159,7 +216,13 @@ def main():
             # st.session_state.messages.append({"role": "assistant", "content": output})
 
             with tracing_v2_enabled(project_name="Applied AI RAG Assistant", tags=["LangChain", "Agent"]):
-                response = agent.invoke({"input": prompt})
+                chat_history = st.session_state.messages
+                response = agent.invoke(
+                    {
+                        "input": prompt,
+                        "chat_history": chat_history
+                    }
+                )
                 answer = f"🦜: {response['output']}"
                 st.write(answer)
                 st.session_state.messages.append({"role": "assistant", "content": answer})

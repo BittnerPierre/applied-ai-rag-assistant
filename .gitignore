@@ -54,3 +54,6 @@ default.sqlite
 /storage
 /data/cache
 /data/faiss
+/logs
+/logs
+/logs
