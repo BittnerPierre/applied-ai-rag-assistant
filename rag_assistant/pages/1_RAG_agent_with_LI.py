@@ -7,10 +7,12 @@ from langchain_core.tools import ToolException, Tool
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 
+from llama_index.embeddings.mistralai import MistralAIEmbedding
+from llama_index.llms.mistralai import MistralAI
+
 from utils.config_loader import load_config
 
-from utils.utilsrag import create_sentence_window_agent, create_automerging_agent, \
-    create_subquery_agent, create_direct_query_agent, agent_lli_factory
+from utils.utils_rag_li import agent_li_factory
 
 from utils.utilsllm import load_model
 
@@ -20,6 +22,12 @@ from langchain.agents import create_react_agent, AgentExecutor
 
 from llama_index.core import SimpleDirectoryReader, Settings
 
+from langchain_core.tracers.context import tracing_v2_enabled
+
+
+# EXTERNALISATION OF PROMPTS TO HAVE THEIR OWN VERSIONING
+from shared.rag_prompts import __template__
+
 load_dotenv(find_dotenv())
 
 config = load_config()
@@ -27,64 +35,8 @@ config = load_config()
 app_name = config['DEFAULT']['APP_NAME']
 LLM_MODEL = config['LLM']['LLM_MODEL']
 
-
-__template__ = """Answer the following questions as best you can. You have access to the following tools:
-
-            {tools}
-
-            Use the following format:
-
-            Question: the input question you must answer
-            Thought: you should always think about what to do
-            Action: the action to take, should be one of [{tool_names}]
-            Action Input: the input to the action
-            Observation: the result of the action
-            ... (this Thought/Action/Action Input/Observation can repeat N times)
-            Thought: I now know the final answer
-            Final Answer: the final answer to the original input question
-
-            Begin!
-
-            Question: {input}
-            Thought:{agent_scratchpad}"""
-
-__template2__ = """You are an assistant designed to guide users through a structured risk assessment questionnaire for cloud deployment. 
-    The questionnaire is designed to cover various pillars essential for cloud architecture,
-     including security, compliance, availability, access methods, data storage, processing, performance efficiency,
-      cost optimization, and operational excellence.
-
-    For each question, you are to follow the "Chain of Thought" process. This means that for each user's response, you will:
-    
-    - Acknowledge the response,
-    - Reflect on the implications of the choice,
-    - Identify any risks associated with the selected option,
-    - Suggest best practices and architecture patterns that align with the user’s selection,
-    - Guide them to the next relevant question based on their previous answers.
-    
-    Your objective is to ensure that by the end of the questionnaire, the user has a clear understanding of the appropriate architecture and services needed for a secure, efficient, and compliant cloud deployment. Remember to provide answers in a simple, interactive, and concise manner.
-    
-    Process:
-    
-    1. Begin by introducing the purpose of the assessment and ask the first question regarding data security and compliance.
-    2. Based on the response, discuss the chosen level of data security, note any specific risks or requirements, and recommend corresponding cloud services or architectural patterns.
-    3. Proceed to the next question on application availability. Once the user responds, reflect on the suitability of their choice for their application's criticality and suggest availability configurations.
-    4. For questions on access methods and data storage, provide insights on securing application access points or optimizing data storage solutions.
-    5. When discussing performance efficiency, highlight the trade-offs between performance and cost, and advise on scaling strategies.
-    6. In the cost optimization section, engage in a brief discussion on budgetary constraints and recommend cost-effective cloud resource management.
-    7. Conclude with operational excellence, focusing on automation and monitoring, and propose solutions for continuous integration and deployment.
-    8. After the final question, summarize the user's choices and their implications for cloud architecture.
-    9. Offer a brief closing statement that reassures the user of the assistance provided and the readiness of their cloud deployment strategy.
-    
-    Keep the interactions focused on architectural decisions without diverting to other unrelated topics. 
-    You are not to perform tasks outside the scope of the questionnaire, 
-    such as executing code or accessing external databases. 
-    Your guidance should be solely based on the information provided by the user in the context of the questionnaire.
-    Always answer in French. 
-    {context}
-    Question: {question}
-    Helpful Answer:"""
-
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
+
 
 def load_sidebar():
     with st.sidebar:
@@ -94,35 +46,33 @@ def load_sidebar():
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
 
 
-from llama_index.llms.mistralai import MistralAI
-from llama_index.embeddings.mistralai import MistralAIEmbedding
-
 @st.cache_resource(ttl="1h")
 def load_doc():
     loader = SimpleDirectoryReader(input_dir=f"data/sources/pdf/", recursive=True, required_exts=[".pdf"])
     all_docs = loader.load_data()
     return all_docs
 
+
 @st.cache_resource(ttl="1h")
 def configure_agent(model_name, advanced_rag = None):
     all_docs = load_doc()
 
     ## START LLAMAINDEX
-    agent_li = None
-    llm = None
-    embed_model = None
+    embeddings_rag = None
+    llm_rag = None
     if model_name.startswith("gpt"):
-        llm = OpenAI(model=model_name, temperature=0.1)
-        embed_model = OpenAIEmbedding()
+        llm_rag = OpenAI(model=model_name, temperature=0.1)
+        embeddings_rag = OpenAIEmbedding()
     if model_name.startswith("mistral"):
-        llm = MistralAI(model=model_name, temperature=0.1)
-        embed_model = MistralAIEmbedding()
+        llm_rag = MistralAI(model=model_name, temperature=0.1)
+        embeddings_rag = MistralAIEmbedding()
 
-    ## Settings seems to be the preferred version to setup llm and embeddings with latest LI API
-    Settings.llm = llm
-    Settings.embed_model = embed_model
+    #
+    # Settings seems to be the preferred version to setup llm and embeddings with latest LI API
+    Settings.llm = llm_rag
+    Settings.embed_model = embeddings_rag
 
-    agent_lli = agent_lli_factory(advanced_rag=advanced_rag, llm=llm, documents=all_docs, topics=topics)
+    agent_li = agent_li_factory(advanced_rag=advanced_rag, llm=llm_rag, documents=all_docs, topics=topics)
 
     def _handle_error(error: ToolException) -> str:
         if error == JSONDecodeError:
@@ -136,16 +86,18 @@ def configure_agent(model_name, advanced_rag = None):
 
     lc_tools = [
         Tool(
-            name=f"LlamaIndex RAG Agent",
-            func=agent_lli.chat,
-            description=f"""Useful when you need to answer questions. "
+            name=f"Knowledge Agent (LI)",
+            func=agent_li.chat,
+            description=f"""Useful when you need to answer questions on {topics}. "
                         "DO NOT USE MULTI-ARGUMENTS INPUT.""",
             handle_tool_error=_handle_error,
         ),
     ]
-    ## END LLAMAINDEX
+    #
+    # END LLAMAINDEX
 
-    ## START LANGCHAIN
+    #
+    # START LANGCHAIN
     # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
     llm_agent = load_model()
 
@@ -155,14 +107,23 @@ def configure_agent(model_name, advanced_rag = None):
         prompt=PromptTemplate.from_template(__template__)
     )
 
-    agent_executor = AgentExecutor(agent=agent, tools=lc_tools, handle_parsing_errors=True)
-    ## END LANGCHAIN
+    #
+    # TODO
+    # sometimes received "Parsing LLM output produced both a final answer and a parse-able action" with mistral
+    # add a handle_parsing_errors, reduce the case but still appears time to time.
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=lc_tools,
+        handle_parsing_errors="Check your output and make sure it conforms!"
+                              " Do not output an action and a final answer at the same time.")
+    # END LANGCHAIN
+    #
     return agent_executor
 
 
 def main():
 
-    st.title("📄Chat with Doc 🤗")
+    st.title("Question Answering Assistant (RAG)")
 
     load_sidebar()
 
@@ -171,12 +132,12 @@ def main():
     st.sidebar.subheader("RAG Agent Model")
     # for openai only
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
-                                  captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
-                                  index=0, disabled=agent_model != "OPENAI")
+                                      captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
+                                      index=0, disabled=agent_model != "OPENAI")
 
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
-                                  captions=["Mistral 7b", "Mixtral", "Mistral Large"],
-                                  index=2, disabled=agent_model != "MISTRAL")
+                                          captions=["Mistral 7b", "Mixtral", "Mistral Large"],
+                                          index=2, disabled=agent_model != "MISTRAL")
 
     model_name = None
     if agent_model == "MISTRAL":
@@ -184,25 +145,12 @@ def main():
     elif agent_model == "OPENAI":
         model_name = model_name_mistral
 
-    # template = st.sidebar.text_area("Prompt", __template2__)
-
     st.sidebar.subheader("RAG Agent params")
     advanced_rag = st.sidebar.radio("Advanced RAG (Llamaindex)", ["direct_query", "subquery", "automerging",
                                                                   "sentence_window"])
 
-    ## OLD STUFF WITH LANGCHAIN, COMMENTED TO FOCUS ON LLAMAINDEX AGENT
-    # chain_type = st.sidebar.radio("Chain type (LangChain)",
-    #                               ["stuff", "map_reduce", "refine", "map_rerank"])
-    #
-    # st.sidebar.subheader("Search params (LangChain)")
-    # k = st.sidebar.slider('Number of relevant chunks', 1, 10, 4, 1)
-    #
-    # search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
-    #                                                "similarity_score_threshold"])
-
+    st.header("RAG agent with LlamaIndex")
     agent = configure_agent(model_name, advanced_rag)
-
-    st.header("Question Answering Assistant")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -222,11 +170,12 @@ def main():
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
+            with tracing_v2_enabled(project_name="Applied AI RAG Assistant", tags=["LlamaIndex", "Agent"]):
+                response = agent.invoke({"input": prompt})
 
-            response = agent.invoke({"input": prompt})
-
-            st.write(response['output'])
-            st.session_state.messages.append({"role": "assistant", "content": response['output']})
+                answer = f"🦙: {response['output']}"
+                st.write(answer)
+                st.session_state.messages.append({"role": "assistant", "content": answer})
 
 
 if __name__ == "__main__":

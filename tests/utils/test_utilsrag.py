@@ -7,8 +7,9 @@ from llama_index.embeddings.mistralai import MistralAIEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.mistralai import MistralAI
 
-from rag_assistant.utils.utilsrag import create_automerging_engine, create_lli_agent, create_direct_query_engine, \
-    create_subquery_engine, create_sentence_window_engine
+import utils.utils_rag_li
+from utils.utils_rag_li import create_automerging_engine, create_sentence_window_engine, create_subquery_engine, \
+    create_direct_query_engine, create_li_agent
 
 import shutil
 
@@ -84,7 +85,7 @@ def get_prebuilt_trulens_recorder(query_engine, app_id):
 @pytest.fixture(scope="module")
 def temp_dir(request):
     # Setup: Create a temporary directory for the test module
-    dir_name = utilsrag.llama_index_root_dir
+    dir_name = utils.utils_rag_li.llama_index_root_dir
     os.makedirs(dir_name, exist_ok=True)
     shutil.rmtree(dir_name)
     # Yield the directory name to the tests
@@ -152,8 +153,8 @@ def test_automerging_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_p
 
     query_engine = create_automerging_engine(docs_prepare)
 
-    agent = create_lli_agent(name="test_automerging_agent", description="Test Automerging Agent",
-                             query_engine=query_engine)
+    agent = create_li_agent(name="test_automerging_agent", description="Test Automerging Agent",
+                            query_engine=query_engine)
 
     response = agent.chat("How do I get started on a personal project in AI?")
     print(f"response: {str(response)}")
@@ -175,8 +176,8 @@ def test_sentence_window_agent(temp_dir, llm_prepare, docs_prepare, eval_questio
 
     print(trulens_prepare.get_leaderboard(app_ids=[]))
 
-    agent = create_lli_agent(name="test_sentence_window_agent", description="Test Sentence Window Agent",
-                             query_engine=query_engine)
+    agent = create_li_agent(name="test_sentence_window_agent", description="Test Sentence Window Agent",
+                            query_engine=query_engine)
 
     response = agent.chat("How do I get started on a personal project in AI?")
     print(f"response: {str(response)}")
@@ -198,7 +199,7 @@ def test_llamaindex_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_pr
 
     print(trulens_prepare.get_leaderboard(app_ids=[]))
 
-    agent = create_lli_agent(name="test_direct_query_agent", description="Test Direct Query Agent", query_engine = query_engine)
+    agent = create_li_agent(name="test_direct_query_agent", description="Test Direct Query Agent", query_engine = query_engine)
 
     response = agent.chat("How do I get started on a personal project in AI?")
     print(f"response: {str(response)}")
@@ -221,8 +222,8 @@ def test_subquery_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prep
 
     print(trulens_prepare.get_leaderboard(app_ids=[]))
 
-    agent = create_lli_agent(name="test_subquery_agent", description="Test Subquery Agent",
-                             query_engine=query_engine)
+    agent = create_li_agent(name="test_subquery_agent", description="Test Subquery Agent",
+                            query_engine=query_engine)
 
     response = agent.chat("How do I get started on a personal project in AI?")
     print(f"response: {str(response)}")

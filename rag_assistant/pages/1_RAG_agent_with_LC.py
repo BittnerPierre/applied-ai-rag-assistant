@@ -1,23 +1,25 @@
 from json import JSONDecodeError
 
 import streamlit as st
-from langchain.agents import initialize_agent, AgentType, AgentExecutor, create_react_agent
-from langchain.chains.retrieval_qa.base import RetrievalQA
-from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+from langchain.agents import AgentExecutor, create_react_agent
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import Tool, ToolException
-from langchain_core.vectorstores import VectorStore
 
 from utils.config_loader import load_config
-from utils.utilsdoc import get_store, load_store
 
-from utils.utilsrag import invoke
+from utils.utilsrag import agent_lc_factory
 
 from utils.utilsllm import load_model, load_embeddings
 
 from dotenv import load_dotenv, find_dotenv
+
+from langchain_core.tracers.context import tracing_v2_enabled
+
+# EXTERNALISATION OF PROMPTS TO HAVE THEIR OWN VERSIONING
+from shared.rag_prompts import __template__
+
 
 load_dotenv(find_dotenv())
 
@@ -25,63 +27,6 @@ config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
 LLM_MODEL = config['LLM']['LLM_MODEL']
-
-
-__template__ = """Answer the following questions as best you can. You have access to the following tools:
-
-            {tools}
-
-            Use the following format:
-
-            Question: the input question you must answer
-            Thought: you should always think about what to do
-            Action: the action to take, should be one of [{tool_names}]
-            Action Input: the input to the action
-            Observation: the result of the action
-            ... (this Thought/Action/Action Input/Observation can repeat N times)
-            Thought: I now know the final answer
-            Final Answer: the final answer to the original input question
-
-            Begin!
-
-            Question: {input}
-            Thought:{agent_scratchpad}"""
-
-__template2__ = """You are an assistant designed to guide users through a structured risk assessment questionnaire for cloud deployment. 
-    The questionnaire is designed to cover various pillars essential for cloud architecture,
-     including security, compliance, availability, access methods, data storage, processing, performance efficiency,
-      cost optimization, and operational excellence.
-
-    For each question, you are to follow the "Chain of Thought" process. This means that for each user's response, you will:
-    
-    - Acknowledge the response,
-    - Reflect on the implications of the choice,
-    - Identify any risks associated with the selected option,
-    - Suggest best practices and architecture patterns that align with the user’s selection,
-    - Guide them to the next relevant question based on their previous answers.
-    
-    Your objective is to ensure that by the end of the questionnaire, the user has a clear understanding of the appropriate architecture and services needed for a secure, efficient, and compliant cloud deployment. Remember to provide answers in a simple, interactive, and concise manner.
-    
-    Process:
-    
-    1. Begin by introducing the purpose of the assessment and ask the first question regarding data security and compliance.
-    2. Based on the response, discuss the chosen level of data security, note any specific risks or requirements, and recommend corresponding cloud services or architectural patterns.
-    3. Proceed to the next question on application availability. Once the user responds, reflect on the suitability of their choice for their application's criticality and suggest availability configurations.
-    4. For questions on access methods and data storage, provide insights on securing application access points or optimizing data storage solutions.
-    5. When discussing performance efficiency, highlight the trade-offs between performance and cost, and advise on scaling strategies.
-    6. In the cost optimization section, engage in a brief discussion on budgetary constraints and recommend cost-effective cloud resource management.
-    7. Conclude with operational excellence, focusing on automation and monitoring, and propose solutions for continuous integration and deployment.
-    8. After the final question, summarize the user's choices and their implications for cloud architecture.
-    9. Offer a brief closing statement that reassures the user of the assistance provided and the readiness of their cloud deployment strategy.
-    
-    Keep the interactions focused on architectural decisions without diverting to other unrelated topics. 
-    You are not to perform tasks outside the scope of the questionnaire, 
-    such as executing code or accessing external databases. 
-    Your guidance should be solely based on the information provided by the user in the context of the questionnaire.
-    Always answer in French. 
-    {context}
-    Question: {question}
-    Helpful Answer:"""
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
 
@@ -104,13 +49,10 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
     all_docs = load_doc()
 
     embeddings_rag = load_embeddings(model_name)
-    db = load_store(all_docs, embeddings_rag)
-    retriever = db.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
-    llm_rag = load_model(model_name)
+    llm_rag = load_model(model_name, temperature=0.1)
 
-    retrieval_qa_chain = RetrievalQA.from_chain_type(
-        llm=llm_rag, chain_type=chain_type, retriever=retriever
-    )
+    retrieval_qa_chain = agent_lc_factory(all_docs, chain_type, embeddings_rag, llm_rag, search_kwargs,
+                                          search_type)
 
     def _handle_error(error: ToolException) -> str:
         if error == JSONDecodeError:
@@ -124,9 +66,9 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
 
     lc_tools = [
         Tool(
-            name=f"Langchain RAG Chain",
+            name=f"Knowledge Agent (LC)",
             func=retrieval_qa_chain,
-            description=f"""Useful when you need to answer questions. "
+            description=f"""Useful when you need to answer questions on {topics}. "
                         "DO NOT USE MULTI-ARGUMENTS INPUT.""",
             handle_tool_error=_handle_error,
         ),
@@ -139,14 +81,23 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
         tools=lc_tools,
         prompt=PromptTemplate.from_template(__template__)
     )
-    agent_executor = AgentExecutor(agent=agent, tools=lc_tools, handle_parsing_errors=True)
+
+    #
+    # TODO
+    # sometimes received "Parsing LLM output produced both a final answer and a parse-able action" with mistral
+    # add a handle_parsing_errors, reduce the case but still appears time to time.
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=lc_tools,
+        handle_parsing_errors="Check your output and make sure it conforms!"
+                              " Do not output an action and a final answer at the same time.")
     ## END LANGCHAIN
     return agent_executor
 
 
 def main():
 
-    st.title("📄Chat with Doc 🤗")
+    st.title("Question Answering Assistant (RAG)")
 
     load_sidebar()
 
@@ -164,15 +115,9 @@ def main():
 
     model_name = None
     if agent_model == "MISTRAL":
-        model_name = model_name_gpt
-    elif agent_model == "OPENAI":
         model_name = model_name_mistral
-
-    # llm = load_model(model_name)
-    embeddings = load_embeddings()
-    llm = load_model()
-
-    # template = st.sidebar.text_area("Prompt", __template2__)
+    elif agent_model == "OPENAI":
+        model_name = model_name_gpt
 
     ## OLD STUFF WITH LANGCHAIN, COMMENTED TO FOCUS ON LLAMAINDEX AGENT
     chain_type = st.sidebar.radio("Chain type (LangChain)",
@@ -184,11 +129,8 @@ def main():
     search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
                                                     "similarity_score_threshold"])
 
+    st.header("RAG agent with LangChain")
     agent = configure_agent(model_name, chain_type, search_type, {"k":k})
-
-    # verbose = st.sidebar.checkbox("Verbose")
-
-    st.header("Question Answering Assistant")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -209,14 +151,18 @@ def main():
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
 
-            store: VectorStore = get_store(embeddings)
-
+            ## OLD WAY without agent
+            # llm = load_model()
+            # embeddings = load_embeddings()
             # output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
+            # st.write(output)
+            # st.session_state.messages.append({"role": "assistant", "content": output})
 
-            response = agent.invoke({"input": prompt})
-
-            st.write(response['output'])
-            st.session_state.messages.append({"role": "assistant", "content": response['output']})
+            with tracing_v2_enabled(project_name="Applied AI RAG Assistant", tags=["LangChain", "Agent"]):
+                response = agent.invoke({"input": prompt})
+                answer = f"🦜: {response['output']}"
+                st.write(answer)
+                st.session_state.messages.append({"role": "assistant", "content": answer})
 
 
 if __name__ == "__main__":

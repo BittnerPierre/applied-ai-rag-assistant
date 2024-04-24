@@ -6,7 +6,6 @@ from dotenv import load_dotenv, find_dotenv
 import openai
 from mistralai.client import MistralClient
 
-
 from .config_loader import load_config
 
 from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
@@ -23,8 +22,9 @@ openai.api_key = os.environ['OPENAI_API_KEY']
 mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 
-def load_model(model_name: str = None) -> BaseChatModel:
+def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
 
+    model = None
     if model_name is None:
         model = config['LLM']['LLM_MODEL']
     elif model_name.startswith("gpt"):
@@ -42,11 +42,11 @@ def load_model(model_name: str = None) -> BaseChatModel:
     elif model == "OPENAI":
         if model_name is None:
             model_name = config['OPENAI']['OPENAI_MODEL_NAME']
-        llm = ChatOpenAI(model_name=model_name, temperature=0)
+        llm = ChatOpenAI(model_name=model_name, temperature=temperature)
     elif model == "MISTRAL":
         if model_name is None:
             model_name = config['MISTRAL']['CHAT_MODEL']
-        llm = ChatMistralAI(mistral_api_key=mistral_api_key, model=model_name)
+        llm = ChatMistralAI(mistral_api_key=mistral_api_key, model=model_name, temperature=temperature)
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
@@ -72,6 +72,7 @@ def load_client():
 
 def load_embeddings(model_name: str = None) -> Embeddings:
 
+    model = None
     if model_name is None:
         model = config['LLM']['LLM_MODEL']
     elif model_name.startswith("gpt"):

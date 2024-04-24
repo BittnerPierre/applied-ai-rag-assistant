@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 from utils.config_loader import load_config
 
+
 config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
