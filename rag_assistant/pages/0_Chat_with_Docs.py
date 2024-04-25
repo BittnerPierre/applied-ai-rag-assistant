@@ -102,6 +102,7 @@ def configure_retriever(pdf_files_paths):
 
     return retriever
 
+
 def _submit_feedback(user_response, emoji=None):
     if user_response['score'] == '👍':
         feedback_score = '+1'

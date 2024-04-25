@@ -315,7 +315,7 @@ def create_direct_query_agent(llm, documents: Sequence[Document], name:str, desc
     return agent_li
 
 
-def create_li_agent(name:str, description: str, query_engine: BaseQueryEngine, llm: Optional[LLM] = None):
+def create_li_agent(name: str, description: str, query_engine: BaseQueryEngine, llm: Optional[LLM] = None):
 
     query_engine_tool = QueryEngineTool(
         query_engine=query_engine,

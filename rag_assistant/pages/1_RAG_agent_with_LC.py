@@ -9,7 +9,7 @@ from langchain_core.tools import Tool, ToolException
 
 from utils.config_loader import load_config
 
-from utils.utilsrag import agent_lc_factory
+from utils.utilsrag_lc import agent_lc_factory
 
 from utils.utilsllm import load_model, load_embeddings
 
@@ -18,7 +18,7 @@ from dotenv import load_dotenv, find_dotenv
 from langchain_core.tracers.context import tracing_v2_enabled
 
 # EXTERNALISATION OF PROMPTS TO HAVE THEIR OWN VERSIONING
-from shared.rag_prompts import __template__, __structured_chat_agent__
+from shared.rag_prompts import __structured_chat_agent__
 
 load_dotenv(find_dotenv())
 
@@ -29,47 +29,11 @@ LLM_MODEL = config['LLM']['LLM_MODEL']
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
 
+model_to_index = {
+    "OPENAI": 0,
+    "MISTRAL": 1
+}
 
-system = '''Respond to the human as helpfully and accurately as possible. You have access to the following tools:
-
-    {tools}
-    
-    Use a json blob to specify a tool by providing an action key (tool name) and an action_input key (tool input).
-    
-    Valid "action" values: "Final Answer" or {tool_names}
-    
-    Provide only ONE action per $JSON_BLOB, as shown:
-    
-    ```
-    {{
-      "action": $TOOL_NAME,
-      "action_input": $INPUT
-    }}
-    ```
-    
-    Follow this format:
-    
-    Question: input question to answer
-    Thought: consider previous and subsequent steps
-    Action:
-    ```
-    $JSON_BLOB
-    ```
-    Observation: action result
-    ... (repeat Thought/Action/Observation N times)
-    Thought: I know what to respond
-    Action:
-    ```
-    {{
-      "action": "Final Answer",
-      "action_input": "Final response to human"
-    }}
-    
-    Begin! 
-    Reminder to ALWAYS respond with a valid json blob of a single action.
-     Use tools to retrieve relevant information. 
-     Do not respond directly to question. 
-     Format is Action:```$JSON_BLOB```then Observation'''
 
 human = '''{input}
     
@@ -102,7 +66,7 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
     llm_rag = load_model(model_name, temperature=0.1)
 
     retrieval_qa_chain = agent_lc_factory(all_docs, chain_type, embeddings_rag, llm_rag, search_kwargs,
-                                          search_type)
+                                          search_type, collection_name="RAG_LC_Agent")
 
     def _handle_error(error: ToolException) -> str:
         if error == JSONDecodeError:
@@ -132,7 +96,7 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
         tools=lc_tools,
         prompt=ChatPromptTemplate.from_messages(
                 [
-                    ("system", system),
+                    ("system", __structured_chat_agent__),
                     MessagesPlaceholder("chat_history", optional=True),
                     ("human", human),
                 ]
@@ -158,7 +122,8 @@ def main():
 
     load_sidebar()
 
-    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=1)
+    model_index = model_to_index[LLM_MODEL]
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
     # for openai only

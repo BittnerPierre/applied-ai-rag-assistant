@@ -57,3 +57,5 @@ default.sqlite
 /logs
 /logs
 /logs
+/logs
+*.log

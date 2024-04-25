@@ -19,8 +19,8 @@ import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
 
-from utils.utilsllm import load_embeddings
-from utils.config_loader import load_config
+from .utilsllm import load_embeddings
+from .config_loader import load_config
 
 
 config = load_config()
@@ -151,7 +151,7 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
         # Create a list of unique ids for each document based on the content
         ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, doc.page_content)) for doc in documents]
         unique_ids = list(set(ids))
-        print(f"""Unique Ids : {unique_ids}""")
+        # print(f"""Unique Ids : {unique_ids}""")
 
         # Ensure that only docs that correspond to unique ids are kept and that only one of the duplicate ids is kept
         seen_ids = set()

@@ -7,8 +7,8 @@ from llama_index.embeddings.mistralai import MistralAIEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.mistralai import MistralAI
 
-import rag_assistant.utils.utils_rag_li
-from rag_assistant.utils.utils_rag_li import create_automerging_engine, create_sentence_window_engine, create_subquery_engine, \
+import rag_assistant.utils.utilsrag_li
+from rag_assistant.utils.utilsrag_li import create_automerging_engine, create_sentence_window_engine, create_subquery_engine, \
     create_direct_query_engine, create_li_agent
 
 import shutil
@@ -131,7 +131,7 @@ def eval_questions_prepare():
 @pytest.fixture(scope="module")
 def trulens_prepare():
     tru = Tru()
-    tru.reset_database()
+    # tru.reset_database()
     return tru
 
 

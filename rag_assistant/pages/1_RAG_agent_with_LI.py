@@ -12,7 +12,7 @@ from llama_index.llms.mistralai import MistralAI
 
 from utils.config_loader import load_config
 
-from utils.utils_rag_li import agent_li_factory
+from utils.utilsrag_li import agent_li_factory
 
 from utils.utilsllm import load_model
 

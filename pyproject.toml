@@ -22,6 +22,15 @@ streamlit = ">=1.26"
 docarray = "^0.40.0"
 langchain-community = "^0.0.29" # must have "^0.0.29"
 langchain-openai = "^0.1.1"
+# There is a incompatibility issue with chroma and llamaindex
+# was working with 0.4.3 but it is no longer supporter by llamaidnex and there is incompatibility issue
+# newer version of chromadb raised "ModuleNotFoundError: No module named 'hnswlib'" in vector/local_hnsw.py", line 26
+# llama-index-vector-stores-chroma (0.1.6) depends on chromadb (>=0.4.22,<0.5.0)
+# at runtime
+# using FAISS for now as vectorstore
+# chromadb  = "0.4.3" # Must have "0.4.3"
+# solved by doing pip uninstall hnswlib
+# and pip install chroma-hnswlib
 chromadb = ">=0.4.24"
 chroma-hnswlib = ">=0.7.3"
 numexpr = "^2.8.8"
@@ -33,13 +42,6 @@ llama-index-vector-stores-chroma = ">=0.1.6"
 llama-index-embeddings-huggingface = ">=0.1.6"
 nltk = ">=3.8.1"
 python-dotenv= ">=1.0.0"
-# There is a incompatibility issue with chroma and llamaindex
-# was working with 0.4.3 but it is no longer supporter by llamaidnex and there is incompatibility issue
-# newer version of chromadb raised "ModuleNotFoundError: No module named 'hnswlib'" in vector/local_hnsw.py", line 26
-# llama-index-vector-stores-chroma (0.1.6) depends on chromadb (>=0.4.22,<0.5.0)
-# at runtime
-# using FAISS for now as vectorstore
-# chromadb  = "0.4.3" # Must have "0.4.3"
 PyPDF2 = ">=3.0.1"
 faiss-cpu = ">=1.8.0"
 wikipedia = ">=1.4.0"
