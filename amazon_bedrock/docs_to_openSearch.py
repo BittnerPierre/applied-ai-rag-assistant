@@ -2,9 +2,9 @@ import boto3
 import json
 from dotenv import load_dotenv
 import os
-from opensearchpy import OpenSearch, RequestsHttpConnection, AWS4SignerAuth
-from langchain.text_splitter import CharactorSplitter, RecursiveCharactorSplitter
-from langchain.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
+from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
+from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
+from langchain.document_loaders import PyPDFLoader, PyPDFDirectoryLoader
 from urllib.parse import urlparse
 
 # Load environment variables
@@ -12,8 +12,8 @@ load_dotenv()
 
 # instantiating the bedrock client, with specific CLI profile
 boto3.setup_default_session(profile_name=os.getenv('profile_name'))
-client = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
-opensearch = bnoto3.client('opensearchserverless')
+bedrock = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
+opensearch = boto3.client("opensearchserverless")
 
 region = 'eu-central-1'
 opensearch_host = os.getenv('opensearch_host')
@@ -21,28 +21,37 @@ parsed_url = urlparse(opensearch_host)
 host = parsed_url.hostname
 service = 'aoss'
 credentials = boto3.Session(profile_name=os.getenv('profile_name')).get_credentials()
-auth = AWS4SignerAuth(credentials, service, region)
+auth = AWSV4SignerAuth(credentials, region, service)
 
 client = OpenSearch(
     hosts=[{'host': host, 'port': 443}],
-    connection_class=RequestsHttpConnection,
     http_auth=auth,
-    pool_maxsize=20,
-    use_ssl=True
+    use_ssl=True,
+    verify_certs=True,
+    connection_class=RequestsHttpConnection,
+    pool_maxsize=20
 )
 
 
 # load PDF and chunk
-loader = PyPDFLoader() # path to the PDF file ( later on we will use the PyPDFDirectoryLoader to load multiple PDFs in a S3 bucket)
+loader = PyPDFLoader("/Users/loicsteve/Desktop/GenAI/Is Reinforcement Learning (not ) for Natural Language Processing.pdf") # path to the PDF file ( later on we will use the PyPDFDirectoryLoader to load multiple PDFs in a S3 bucket)
 documents = loader.load()
 
-text_splitter = RecursiveCharactorSplitter(
+text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=500,
     chunk_overlap=100,      # overlap between chunks
 )
 
 #  The splitting
-doc = text_splitter.split(documents)
+doc = text_splitter.split_documents(documents)
+
+# Providing insights into the average length of documents, and amount of character before and after splitting
+avg_doc_length = lambda documents: sum([len(doc.page_content) for doc in documents]) // len(documents)
+avg_char_count_pre = avg_doc_length(documents)
+avg_char_count_post = avg_doc_length(doc)
+print(f'Average length among {len(documents)} documents loaded is {avg_char_count_pre} characters.')
+print(f'After the split we have {len(doc)} documents more than the original {len(documents)}.')
+print(f'Average length among {len(doc)} documents (after split) is {avg_char_count_post} characters.')
 
 # Embedding the documents into the OpenSearch
 def get_embedding(body):
@@ -52,10 +61,10 @@ def get_embedding(body):
     :return: A vector containing the embeddings of the passed in content
     """
 
-    model_id = 'amazon.titan-embed-text-v1'
+    modelId = 'amazon.titan-embed-text-v1'
     accept = 'application/json'
-    content_type = 'application/json'
-    response = bedrock.invoke_model(body=body, model_id=model_id, accept=accept, content_type=content_type)
+    contentType = 'application/json'
+    response = bedrock.invoke_model(body=body, modelId=modelId, accept=accept, contentType=contentType)
     response_body = json.loads(response.get('body').read())
     embedding = response_body.get('embedding')
     return embedding
@@ -77,6 +86,7 @@ def indexDoc(client, vectors, text):
     response = client.index(index=os.getenv("vector_index_name"), 
                             body=indexDocument,
                             refresh=False)
+    print(response)
     return response
 
 # The process of iterating through each chunk of document we are trying to index, generating the embeddings, and indexing the document.
@@ -84,7 +94,7 @@ for i in doc:
     # The text data of each chunk
     exampleContent = i.page_content
     # The embeddings of each chunk
-    exampleInput = json.dumps({"text": exampleContent})
+    exampleInput = json.dumps({"inputText": exampleContent})
     exampleVectors = get_embedding(exampleInput)
     # setting the text data as the text variable, and generated vector to a vector variable
     text = exampleContent
