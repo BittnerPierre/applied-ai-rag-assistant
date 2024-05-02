@@ -14,6 +14,10 @@ load_dotenv()
 boto3.setup_default_session(profile_name=os.getenv('profile_name'))
 bedrock = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
 opensearch = boto3.client("opensearchserverless")
+s3 = boto3.client("s3")
+
+bucket_name = os.getenv("bucket_name")
+prefix = os.getenv("prefix")
 
 region = 'eu-central-1'
 opensearch_host = os.getenv('opensearch_host')
@@ -34,7 +38,8 @@ client = OpenSearch(
 
 
 # load PDF and chunk
-loader = PyPDFLoader("/Users/loicsteve/Desktop/GenAI/Is Reinforcement Learning (not ) for Natural Language Processing.pdf") # path to the PDF file ( later on we will use the PyPDFDirectoryLoader to load multiple PDFs in a S3 bucket)
+#loader = PyPDFLoader("/Users/loicsteve/Desktop/GenAI/Is Reinforcement Learning (not ) for Natural Language Processing.pdf") # path to the PDF file ( later on we will use the PyPDFDirectoryLoader to load multiple PDFs in a S3 bucket)
+loader = PyPDFDirectoryLoader(s3, bucket_name, prefix) 
 documents = loader.load()
 
 text_splitter = RecursiveCharacterTextSplitter(
