@@ -2,6 +2,7 @@ from json import JSONDecodeError
 
 import streamlit as st
 from langchain.agents import AgentExecutor, create_react_agent, create_structured_chat_agent
+from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
@@ -15,10 +16,15 @@ from utils.utilsllm import load_model, load_embeddings
 
 from dotenv import load_dotenv, find_dotenv
 
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import (
+    StreamlitChatMessageHistory,
+)
+
 from langchain_core.tracers.context import tracing_v2_enabled
 
 # EXTERNALISATION OF PROMPTS TO HAVE THEIR OWN VERSIONING
-from shared.rag_prompts import __structured_chat_agent__
+from shared.rag_prompts import __structured_chat_agent__, human
 
 load_dotenv(find_dotenv())
 
@@ -33,14 +39,6 @@ model_to_index = {
     "OPENAI": 0,
     "MISTRAL": 1
 }
-
-
-human = '''{input}
-    
-    {agent_scratchpad}
-    
-    (reminder to respond in a JSON blob no matter what)'''
-
 
 
 def load_sidebar():
@@ -90,17 +88,20 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
     ## START LANGCHAIN
     # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
     llm_agent = load_model()
-    # create_react_agent
-    agent = create_structured_chat_agent(
-        llm=llm_agent,
-        tools=lc_tools,
-        prompt=ChatPromptTemplate.from_messages(
+
+    prompt = ChatPromptTemplate.from_messages(
                 [
                     ("system", __structured_chat_agent__),
                     MessagesPlaceholder("chat_history", optional=True),
                     ("human", human),
                 ]
             )
+
+    # create_react_agent
+    agent = create_structured_chat_agent(
+        llm=llm_agent,
+        tools=lc_tools,
+        prompt=prompt
     )
 
     #
@@ -126,14 +127,13 @@ def main():
     agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
-    # for openai only
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
-                                  captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
-                                  index=0, disabled=agent_model != "OPENAI")
+                                      captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
+                                      index=0, disabled=agent_model != "OPENAI")
 
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
-                                  captions=["Mistral 7b", "Mixtral", "Mistral Large"],
-                                  index=2, disabled=agent_model != "MISTRAL")
+                                          captions=["Mistral 7b", "Mixtral", "Mistral Large"],
+                                          index=2, disabled=agent_model != "MISTRAL")
 
     model_name = None
     if agent_model == "MISTRAL":
@@ -141,7 +141,6 @@ def main():
     elif agent_model == "OPENAI":
         model_name = model_name_gpt
 
-    ## OLD STUFF WITH LANGCHAIN, COMMENTED TO FOCUS ON LLAMAINDEX AGENT
     chain_type = st.sidebar.radio("Chain type (LangChain)",
                                   ["stuff", "map_reduce", "refine", "map_rerank"])
 
@@ -154,43 +153,59 @@ def main():
     st.header("RAG agent with LangChain")
     agent = configure_agent(model_name, chain_type, search_type, {"k":k})
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    history = StreamlitChatMessageHistory(key="chat_history")
+    if len(history.messages) == 0:
+        history.add_ai_message("What do you want to know?")
+
+    view_messages = st.expander("View the message contents in session state")
+
+    chain_with_history = RunnableWithMessageHistory(
+        agent,
+        lambda session_id: history,
+        input_messages_key="input",
+        history_messages_key="chat_history",
+    )
 
     # Display chat messages from history on app rerun
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    for message in history.messages:
+        with st.chat_message(message.type):
+            st.markdown(message.content)
 
     # Accept user input
-    if prompt := st.chat_input("What do you want to know?"):
+    if prompt := st.chat_input():
         # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        # Note: new messages are saved to history automatically by Langchain during run
+        # st.session_state.messages.append({"role": "user", "content": prompt})
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(prompt)
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
-
-            ## OLD WAY without agent
-            # llm = load_model()
-            # embeddings = load_embeddings()
-            # output = invoke(prompt, template, llm, chain_type, store, search_type, k, verbose)
-            # st.write(output)
-            # st.session_state.messages.append({"role": "assistant", "content": output})
-
-            with tracing_v2_enabled(project_name="Applied AI RAG Assistant", tags=["LangChain", "Agent"]):
-                chat_history = st.session_state.messages
-                response = agent.invoke(
-                    {
-                        "input": prompt,
-                        "chat_history": chat_history
-                    }
+            # Display assistant response in chat message container
+            with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
+                                    tags=["LangChain", "Agent"]):
+                config = {"configurable": {"session_id": "any"}}
+                response = chain_with_history.invoke(
+                    input={
+                        "input": prompt
+                    },
+                    config=config
                 )
                 answer = f"🦜: {response['output']}"
                 st.write(answer)
-                st.session_state.messages.append({"role": "assistant", "content": answer})
+
+    # Draw the messages at the end, so newly generated ones show up immediately
+    with view_messages:
+        """
+        Message History initialized with:
+        ```python
+        msgs = StreamlitChatMessageHistory(key="chat_history")
+        ```
+
+        Contents of `st.session_state.chat_history`:
+        """
+        view_messages.json(st.session_state.chat_history)
 
 
 if __name__ == "__main__":

@@ -129,6 +129,8 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
 
         index_dir = config['VECTORDB']['faiss_persist_directory']
 
+        embeddings
+
         db = FAISS.from_documents(documents, embeddings)
 
         ## This is generating this error:
@@ -243,10 +245,10 @@ def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata: dict
         return None
 
 
-def load_text(txts: Union[list[UploadedFile], None, UploadedFile], metadata: dict={}):
-    if txts is not None:
+def load_text(texts: Union[list[UploadedFile], None, UploadedFile], metadata: dict={}):
+    if texts is not None:
         docs = []
-        for txt in txts:
+        for txt in texts:
             page_metadata = {'filename': txt.name}
             file_content = txt.read().decode()  # read file content and decode it
             docs.append(Document(page_content=file_content, metadata=metadata))

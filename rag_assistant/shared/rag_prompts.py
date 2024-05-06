@@ -18,10 +18,7 @@ __template__ = """Answer the following questions as best you can. You have acces
             DO NOT output an action and a final answer at the same time.
             NEVER output a final answer if you are still expecting to receive the response of a tool.
 
-            Begin!
-
-            Question: {input}
-            Thought:{agent_scratchpad}"""
+            Begin!"""
 
 __structured_chat_agent__ = '''Respond to the human as helpfully and accurately as possible. You have access to the following tools:
 
@@ -58,11 +55,12 @@ __structured_chat_agent__ = '''Respond to the human as helpfully and accurately 
       "action_input": "Final response to human"
     }}
 
-    Begin! 
     Reminder to ALWAYS respond with a valid json blob of a single action.
      Use tools to retrieve relevant information. 
      Do not respond directly to question. 
-     Format is Action:```$JSON_BLOB```then Observation'''
+     Format is Action:```$JSON_BLOB```then Observation
+     
+    Begin! '''
 
 
 __template2__ = """You are an assistant designed to guide users through a structured risk assessment questionnaire for cloud deployment. 
@@ -109,3 +107,8 @@ __template2__ = """You are an assistant designed to guide users through a struct
     {context}
     Question: {question}
     Helpful Answer:"""
+
+
+human = '''{input}
+
+    {agent_scratchpad}'''

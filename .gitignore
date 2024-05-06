@@ -59,3 +59,4 @@ default.sqlite
 /logs
 /logs
 *.log
+/logs

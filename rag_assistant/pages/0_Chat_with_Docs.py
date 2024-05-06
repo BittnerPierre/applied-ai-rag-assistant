@@ -42,18 +42,8 @@ logger.addHandler(handler)
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
 
-st.set_page_config(page_title="Finaxys: Chat with Documents", page_icon="🦜")
-st.title("Finaxys: Chat with Documents")
-
-
-# Define paths for PDF files
-pdf_files_paths = [
-    "data/sources/pdf/aws/waf/AWS_Well-Architected_Framework.pdf",
-    "data/sources/pdf/Questionnaire d'évaluation des risques applicatifs pour le Cloud Public.pdf",
-    "data/sources/pdf/enisa/Cloud Security Guide for SMEs.pdf",
-    "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
-    # Add more paths as needed
-]
+st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
+st.title("Chat with Documents")
 
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
@@ -95,7 +85,7 @@ __template2__ = """You are an assistant designed to guide software application a
 
 
 @st.cache_resource(ttl="1h")
-def configure_retriever(pdf_files_paths):
+def configure_retriever():
     vectordb = get_store()
 
     retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
@@ -135,6 +125,7 @@ class StreamHandler(BaseCallbackHandler):
             combined_prompt = f"{self.initial_system_prompt}\n\n{user_prompt}"
             prompts[0] = combined_prompt  # Mettre à jour la requête avec la combinaison
 
+
     def on_llm_new_token(self, token: str, **kwargs) -> None:
         if self.run_id_ignore_token == kwargs.get("run_id", False):
             return
@@ -158,8 +149,9 @@ class PrintRetrievalHandler(BaseCallbackHandler):
             self.status.markdown(doc.page_content)
         self.status.update(state="complete")
 
+
 # Configure the retriever with PDF files
-retriever = configure_retriever(pdf_files_paths)
+retriever = configure_retriever()
 
 # Setup memory for contextual conversation
 msgs = StreamlitChatMessageHistory()
