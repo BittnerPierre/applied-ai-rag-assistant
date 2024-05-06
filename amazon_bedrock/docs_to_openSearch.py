@@ -36,10 +36,25 @@ client = OpenSearch(
     pool_maxsize=20
 )
 
-
 # load PDF and chunk
-#loader = PyPDFLoader("/Users/loicsteve/Desktop/GenAI/Is Reinforcement Learning (not ) for Natural Language Processing.pdf") # path to the PDF file ( later on we will use the PyPDFDirectoryLoader to load multiple PDFs in a S3 bucket)
-loader = PyPDFDirectoryLoader(s3, bucket_name, prefix) 
+# Create a local directory to store the downloaded PDF files
+local_dir = "/Users/loicsteve/Desktop/applied-ai-rag-assistant/amazon_bedrock/pdfs"
+if not os.path.exists(local_dir):
+    os.makedirs(local_dir)
+
+# Download the PDF files from S3 to the local directory
+for obj in s3.list_objects(Bucket=bucket_name, Prefix=prefix)["Contents"]:
+    file_name = obj["Key"].split("/")[-1]
+    local_file_path = os.path.join(local_dir, file_name)  # Include filename in local path
+
+    # Check if the destination path already exists and is a directory
+    if os.path.isdir(local_file_path):
+        continue  # Skip this iteration if it's a directory
+
+    # Download the file from S3 if it doesn't already exist locally
+    s3.download_file(Bucket=bucket_name, Key=obj["Key"], Filename=local_file_path)
+# Load the PDF files using PyPDFDirectoryLoader
+loader = PyPDFDirectoryLoader(local_dir)
 documents = loader.load()
 
 text_splitter = RecursiveCharacterTextSplitter(
@@ -106,6 +121,5 @@ for i in doc:
     vectors = exampleVectors
     # calling the indexDoc function, passing in the OpenSearch Client, the created vector, and corresponding text data
     indexDoc(client, vectors, text)
-
 
 
