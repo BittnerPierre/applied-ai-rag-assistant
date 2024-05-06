@@ -5,22 +5,21 @@ from langchain_community.chat_message_histories.streamlit import StreamlitChatMe
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tools import ToolException, Tool
+from llama_index.embeddings.langchain import LangchainEmbedding
 
-from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 
-from llama_index.embeddings.mistralai import MistralAIEmbedding
 from llama_index.llms.mistralai import MistralAI
 
 from utils.config_loader import load_config
 
 from utils.utilsrag_li import agent_li_factory
 
-from utils.utilsllm import load_model
+from utils.utilsllm import load_model, load_embeddings
 
 from dotenv import load_dotenv, find_dotenv
 
-from langchain.agents import create_react_agent, AgentExecutor
+from langchain.agents import create_react_agent, AgentExecutor, create_structured_chat_agent
 
 from llama_index.core import SimpleDirectoryReader, Settings
 
@@ -28,7 +27,7 @@ from langchain_core.tracers.context import tracing_v2_enabled
 
 
 # EXTERNALISATION OF PROMPTS TO HAVE THEIR OWN VERSIONING
-from shared.rag_prompts import __template__, human
+from shared.rag_prompts import __template__, human, __structured_chat_agent__
 
 load_dotenv(find_dotenv())
 
@@ -65,21 +64,26 @@ def configure_agent(model_name, advanced_rag = None):
     all_docs = load_doc()
 
     ## START LLAMAINDEX
-    embeddings_rag = None
+    lc_embeddings = load_embeddings(model_name)
+    embeddings_rag = LangchainEmbedding(lc_embeddings)
     llm_rag = None
+
     if model_name.startswith("gpt"):
         llm_rag = OpenAI(model=model_name, temperature=0.1)
-        embeddings_rag = OpenAIEmbedding()
+        # embeddings_rag = OpenAIEmbedding()
     if model_name.startswith("mistral"):
         llm_rag = MistralAI(model=model_name, temperature=0.1)
-        embeddings_rag = MistralAIEmbedding()
+        # embeddings_rag = MistralAIEmbedding()
 
     #
     # Settings seems to be the preferred version to setup llm and embeddings with latest LI API
     Settings.llm = llm_rag
     Settings.embed_model = embeddings_rag
 
-    agent_li = agent_li_factory(advanced_rag=advanced_rag, llm=llm_rag, documents=all_docs, topics=topics)
+    agent_li = agent_li_factory(advanced_rag=advanced_rag, llm=llm_rag,
+                                documents=all_docs,
+                                topics=topics,
+                                collection_name="RAG_LI_Agent")
 
     def _handle_error(error: ToolException) -> str:
         if error == JSONDecodeError:
@@ -111,13 +115,13 @@ def configure_agent(model_name, advanced_rag = None):
     # prompt = PromptTemplate.from_template(__template__)
     prompt = (ChatPromptTemplate.from_messages(
         [
-            ("system", __template__),
+            ("system", __structured_chat_agent__),
             MessagesPlaceholder("chat_history", optional=True),
             ("human", human),
         ]
     ))
 
-    agent = create_react_agent(
+    agent = create_structured_chat_agent(
         llm=llm_agent,
         tools=lc_tools,
         prompt=prompt
@@ -200,7 +204,7 @@ def main():
             with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
                                     tags=["LlamaIndex", "Agent"]):
                 config = {"configurable": {"session_id": "any"}}
-                response = agent.invoke(input={"input": prompt}, config=config)
+                response = chain_with_history.invoke(input={"input": prompt}, config=config)
 
                 answer = f"🦙: {response['output']}"
                 st.write(answer)

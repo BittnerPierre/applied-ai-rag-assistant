@@ -1,5 +1,4 @@
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain_community.embeddings import OpenAIEmbeddings
 from typing import Union
 from langchain_community.vectorstores import FAISS
 
@@ -14,7 +13,6 @@ import re
 import os
 from pathlib import Path
 import faiss
-import pickle
 import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
@@ -128,8 +126,6 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
     if vectordb == "faiss":
 
         index_dir = config['VECTORDB']['faiss_persist_directory']
-
-        embeddings
 
         db = FAISS.from_documents(documents, embeddings)
 

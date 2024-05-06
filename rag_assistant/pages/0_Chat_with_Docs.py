@@ -192,11 +192,11 @@ for i, question in enumerate(suggested_questions, start=1):
 avatars = {"human": "user", "ai": "assistant"}
 for i, msg in enumerate(msgs.messages):
     st.chat_message(avatars[msg.type]).write(msg.content)
-    if msg.type == "ai" :
+    if msg.type == "ai":
         streamlit_feedback(feedback_type = "thumbs",
-                                 optional_text_label="[Optional]Est ce que cette reponse vous convient?",
-                                 key=f"feedback_{i}",
-                                 on_submit=lambda x: _submit_feedback(x, emoji="👍"))
+                           optional_text_label="[Optional]Est ce que cette reponse vous convient?",
+                           key=f"feedback_{i}",
+                           on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
 
 # Handle suggested questions§

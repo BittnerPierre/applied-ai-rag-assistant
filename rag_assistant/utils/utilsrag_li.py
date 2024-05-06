@@ -1,6 +1,7 @@
 import os
 from typing import Sequence, Optional
 
+import chromadb
 from langchain_core.documents import Document
 # from langchain_core.language_models import LLM
 from llama_index.core import Settings, VectorStoreIndex, load_index_from_storage, StorageContext
@@ -14,6 +15,7 @@ from llama_index.core.postprocessor import MetadataReplacementPostProcessor, Sen
 from llama_index.core.query_engine import RetrieverQueryEngine, SubQuestionQueryEngine
 from llama_index.core.retrievers import AutoMergingRetriever
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
+from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from .config_loader import load_config
 
@@ -23,6 +25,7 @@ llama_index_root_dir = config['LLAMA_INDEX']['LLAMA_INDEX_ROOT_DIR']
 sentence_index_dir = config['LLAMA_INDEX']['SENTENCE_INDEX_DIR']
 merging_index_dir = config['LLAMA_INDEX']['MERGING_INDEX_DIR']
 subquery_index_dir = config['LLAMA_INDEX']['SUBQUERY_INDEX_DIR']
+
 
 def build_sentence_window_index(
     documents,
@@ -76,7 +79,7 @@ def get_sentence_window_query_engine(
 def build_automerging_index(
     documents,
     save_dir=f"{llama_index_root_dir}/{merging_index_dir}",
-    chunk_sizes=None,
+    chunk_sizes=None
 ):
     chunk_sizes = chunk_sizes or [2048, 512, 128]
     node_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=chunk_sizes)
@@ -124,7 +127,7 @@ def get_automerging_query_engine(
 
 
 def create_automerging_engine(
-        documents: Sequence[Document],
+        documents: Sequence[Document]
     ):
 
     automerging_index = build_automerging_index(
@@ -143,11 +146,12 @@ def create_automerging_agent(
         documents: Sequence[Document],
         name:str,
         description: str,
-        query_engine: BaseQueryEngine = None):
+        query_engine: BaseQueryEngine = None
+        ):
 
     if not query_engine:
         query_engine = create_automerging_engine(
-            documents,
+            documents
         )
 
     agent_li = create_li_agent(name, description, query_engine, llm=llm)
@@ -155,7 +159,7 @@ def create_automerging_agent(
 
 
 def create_sentence_window_engine(
-        documents: Sequence[Document],
+        documents: Sequence[Document]
 ):
     sentence_index = build_sentence_window_index(
         documents
@@ -169,11 +173,12 @@ def create_sentence_window_agent(
         documents: Sequence[Document],
         name:str,
         description: str,
-        query_engine: BaseQueryEngine = None):
+        query_engine: BaseQueryEngine = None,
+        storage_context: Optional[StorageContext] = None):
 
     if query_engine is None:
         query_engine = create_sentence_window_engine(
-            documents,
+            documents
         )
 
     agent_li = create_li_agent(name, description, query_engine, llm=llm)
@@ -193,7 +198,7 @@ def infer_topic_from_list(doc_name, topics):
 
 def create_subquery_engine(
         topics: list[str],
-        documents: Sequence[Document],
+        documents: Sequence[Document]
 ):
 
     doc_set = {topic: [] for topic in topics}
@@ -258,7 +263,7 @@ def create_subquery_agent(
     if query_engine is None:
         query_engine = create_subquery_engine(
             topics,
-            documents,
+            documents
         )
 
     agent_li = create_li_agent(name, description, query_engine, llm)
@@ -266,48 +271,77 @@ def create_subquery_agent(
 
 
 def create_direct_query_engine(
-        documents: Sequence[Document]
-    ):
-    index = VectorStoreIndex.from_documents(documents)
+        documents: Sequence[Document],
+        storage_context: Optional[StorageContext] = None):
+    index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
     query_engine = index.as_query_engine()
     return query_engine
 
 
-def agent_li_factory(advanced_rag: str, llm: FunctionCallingLLM, documents, topics):
+def agent_li_factory(advanced_rag: str, llm: FunctionCallingLLM, documents, topics, collection_name):
+
+    # chroma_collection = get_store(embeddings=embeddings, collection_name=collection_name)
+    persist_directory = config['VECTORDB']['chroma_persist_directory']
+    persistent_client = chromadb.PersistentClient(path=persist_directory)
+    chroma_collection = persistent_client.get_or_create_collection(collection_name)
+
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
     agent_lli = None
     if advanced_rag == "sentence_window":
 
         name = "sentence_window_query_engine"
         description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_lli = create_sentence_window_agent(llm=llm, documents=documents, name=name, description=description)
+        agent_lli = create_sentence_window_agent(llm=llm,
+                                                 documents=documents,
+                                                 name=name,
+                                                 description=description)
 
     elif advanced_rag == "automerging":
 
         name = "automerging_query_engine"
         description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_lli = create_automerging_agent(llm=llm, documents=documents, name=name, description=description)
+        agent_lli = create_automerging_agent(llm=llm,
+                                             documents=documents,
+                                             name=name,
+                                             description=description)
 
     elif advanced_rag == "subquery":
 
         name = "sub_question_query_engine"
         description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_lli = create_subquery_agent(llm=llm, topics=topics, documents=documents, name=name, description=description)
+        agent_lli = create_subquery_agent(
+            llm=llm,
+            topics=topics,
+            documents=documents,
+            name=name,
+            description=description)
 
     elif advanced_rag == "direct_query":
 
         name = "direct_query_engine"
         description = f"useful for when you want to answer queries that require knowledge on {topics}"
-        agent_lli = create_direct_query_agent(llm=llm, documents=documents, name=name, description=description)
+        agent_lli = create_direct_query_agent(llm=llm,
+                                              documents=documents,
+                                              name=name,
+                                              description=description,
+                                              storage_context=storage_context)
 
     return agent_lli
 
 
-def create_direct_query_agent(llm, documents: Sequence[Document], name:str, description: str, embed_model: str = "local:BAAI/bge-small-en-v1.5", query_engine: BaseQueryEngine = None):
+def create_direct_query_agent(llm, documents: Sequence[Document],
+                              name:str, description: str,
+                              query_engine: BaseQueryEngine = None,
+                              storage_context: Optional[StorageContext] = None
+                              ):
 
     if query_engine is None:
         query_engine = create_direct_query_engine(
-            documents
+            documents,
+            storage_context
         )
 
     agent_li = create_li_agent(name, description, query_engine, llm)
