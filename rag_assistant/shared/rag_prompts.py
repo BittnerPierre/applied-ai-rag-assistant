@@ -20,7 +20,8 @@ __template__ = """Answer the following questions as best you can. You have acces
 
             Begin!"""
 
-__structured_chat_agent__ = '''Respond to the human as helpfully and accurately as possible. You have access to the following tools:
+__structured_chat_agent__ = '''Respond to the human as helpfully and accurately as possible. 
+    You have access to the following tools:
 
     {tools}
 
@@ -56,9 +57,10 @@ __structured_chat_agent__ = '''Respond to the human as helpfully and accurately 
     }}
 
     Reminder to ALWAYS respond with a valid json blob of a single action.
-     Use tools to retrieve relevant information. 
-     Do not respond directly to question. 
-     Format is Action:```$JSON_BLOB```then Observation
+    Do not respond directly to question. Only use information provided in the context.
+    Use tools to retrieve relevant information. 
+    DO NOT output an action and a final answer at the same time.
+    Format is Action:```$JSON_BLOB``` then Observation
      
     Begin! '''
 

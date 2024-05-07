@@ -84,7 +84,7 @@ def get_prebuilt_trulens_recorder(query_engine, app_id):
 @pytest.fixture(scope="module")
 def temp_dir(request):
     # Setup: Create a temporary directory for the test module
-    dir_name = rag_assistant.utils.utils_rag_li.llama_index_root_dir
+    dir_name = rag_assistant.utils.utilsrag_li.llama_index_root_dir
     os.makedirs(dir_name, exist_ok=True)
     shutil.rmtree(dir_name)
     # Yield the directory name to the tests
@@ -206,7 +206,7 @@ def test_llamaindex_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_pr
 
 
 def test_subquery_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
-    topics = ["AI"]
+    topics = ["AI", "Other"]
     query_engine = create_subquery_engine(
         topics,
         docs_prepare,

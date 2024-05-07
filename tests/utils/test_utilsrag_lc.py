@@ -2,12 +2,8 @@ import pytest
 import os
 from dotenv import load_dotenv, find_dotenv
 from langchain_community.document_loaders.pdf import PyPDFLoader
+from langchain_community.vectorstores.chroma import Chroma
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
-
-import rag_assistant.utils.utilsrag_li
-
-import shutil
-
 
 import numpy as np
 
@@ -127,12 +123,19 @@ def trulens_prepare():
     return tru
 
 
+
 def test_lc_agent_stuff_4_similarity(llm_prepare, embeddings_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
 
-    retrieval_qa_chain = agent_lc_factory(docs_prepare, chain_type="stuff", embeddings=embeddings_prepare,
+    db = Chroma.from_documents(
+        documents=docs_prepare,
+        embedding=embeddings_prepare,
+        collection_name="Test_RAG_LC",
+    )
+
+    retrieval_qa_chain = agent_lc_factory(chain_type="stuff",
                                           llm=llm_prepare,
                                           search_kwargs={"k": 4},
-                                          search_type="similarity")
+                                          search_type="similarity", vectorstore=db)
 
     response = retrieval_qa_chain("How do I get started on a personal project in AI?")
     print(f"response: {str(response)}")

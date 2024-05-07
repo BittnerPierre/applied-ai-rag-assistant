@@ -181,7 +181,8 @@ def get_store(embeddings: Embeddings = None, collection_name=None):
         embeddings = load_embeddings()
 
     if not collection_name:
-        collection_name = "Default"
+        # "Default"
+        collection_name = config['VECTORDB']['collection_name']
 
     db = None
 
@@ -220,11 +221,12 @@ def clean_text(s):
     return s
 
 
-def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata: dict={}):
+def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = None):
     if pdfs is not None:
         docs = []
+        if metadata is None:
+            metadata = {}
         for pdf in pdfs:
-            print(pdf.type)
             if pdf.type == "application/pdf":
                 reader = PdfReader(pdf)
                 for i, page in enumerate(reader.pages, start=1):

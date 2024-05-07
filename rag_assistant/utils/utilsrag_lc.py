@@ -233,9 +233,9 @@ def invoke(question: str, template: str, llm: BaseChatModel, chain_type: str, ve
     return output
 
 
-def agent_lc_factory(all_docs, chain_type, embeddings, llm, search_kwargs, search_type, collection_name=None):
-    db = load_store(all_docs, embeddings, collection_name=collection_name)
-    retriever = db.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
+def agent_lc_factory(chain_type, llm, search_kwargs, search_type, vectorstore):
+
+    retriever = vectorstore.as_retriever(search_type=search_type, search_kwargs=search_kwargs)
     retrieval_qa_chain = RetrievalQA.from_chain_type(
         llm=llm, chain_type=chain_type, retriever=retriever
     )

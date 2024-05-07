@@ -144,7 +144,7 @@ def create_automerging_engine(
 def create_automerging_agent(
         llm,
         documents: Sequence[Document],
-        name:str,
+        name: str,
         description: str,
         query_engine: BaseQueryEngine = None
         ):
@@ -278,16 +278,7 @@ def create_direct_query_engine(
     return query_engine
 
 
-def agent_li_factory(advanced_rag: str, llm: FunctionCallingLLM, documents, topics, collection_name):
-
-    # chroma_collection = get_store(embeddings=embeddings, collection_name=collection_name)
-    persist_directory = config['VECTORDB']['chroma_persist_directory']
-    persistent_client = chromadb.PersistentClient(path=persist_directory)
-    chroma_collection = persistent_client.get_or_create_collection(collection_name)
-
-    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+def agent_li_factory(advanced_rag: str, llm: FunctionCallingLLM, documents, topics, vector_store=None):
 
     agent_lli = None
     if advanced_rag == "sentence_window":
@@ -320,9 +311,11 @@ def agent_li_factory(advanced_rag: str, llm: FunctionCallingLLM, documents, topi
             description=description)
 
     elif advanced_rag == "direct_query":
-
         name = "direct_query_engine"
         description = f"useful for when you want to answer queries that require knowledge on {topics}"
+
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
         agent_lli = create_direct_query_agent(llm=llm,
                                               documents=documents,
                                               name=name,

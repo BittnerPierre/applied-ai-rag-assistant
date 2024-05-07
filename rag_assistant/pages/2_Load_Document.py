@@ -13,12 +13,11 @@ st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 
 
 pdf_files_paths = [
-    "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
-    "data/sources/pdf/aws/waf/AWS_Well-Architected_Framework.pdf",
-    "data/sources/pdf/Questionnaire d'évaluation des risques applicatifs pour le Cloud Public.pdf",
-    "data/sources/pdf/enisa/Cloud Security Guide for SMEs.pdf",
-    "data/sources/pdf/aws/caf/aws-caf-for-ai.pdf",
-    "data/sources/pdf/12 factor/beyond-the-twelve-factor-app.pdf",
+    "data/sources/pdf/GenAI/aws-caf-for-ai.pdf",
+    "data/sources/pdf/Architecture/AWS_Well-Architected_Framework.pdf",
+    "data/sources/pdf/Risk/Questionnaire d'évaluation des risques applicatifs pour le Cloud Public.pdf",
+    "data/sources/pdf/Security/Cloud Security Guide for SMEs.pdf",
+    "data/sources/pdf/Application/beyond-the-twelve-factor-app.pdf",
     # Add more paths as needed
 ]
 

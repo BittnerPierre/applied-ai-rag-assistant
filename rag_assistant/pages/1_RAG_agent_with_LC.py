@@ -1,14 +1,17 @@
 from json import JSONDecodeError
+from typing import Union
 
+import chromadb
 import streamlit as st
-from langchain.agents import AgentExecutor, create_react_agent, create_structured_chat_agent
-from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
-from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
+from langchain.agents import AgentExecutor, create_structured_chat_agent
+from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import Tool, ToolException
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from utils.config_loader import load_config
+from utils.utilsdoc import load_doc
 
 from utils.utilsrag_lc import agent_lc_factory
 
@@ -49,22 +52,30 @@ def load_sidebar():
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
 
 
-@st.cache_resource(ttl="1h")
-def load_doc() -> list[Document]:
-    loader = PyPDFDirectoryLoader("data/sources/pdf/")
-    all_docs = loader.load()
+def _load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile]) -> list[Document]:
+    # loader = PyPDFDirectoryLoader("data/sources/pdf/")
+    # all_docs = loader.load()
+    all_docs = load_doc(pdfs)
     return all_docs
 
 
-@st.cache_resource(ttl="1h")
-def configure_agent(model_name, chain_type=None, search_type="similarity", search_kwargs=None):
-    all_docs = load_doc()
+def configure_agent(all_docs: list[Document], model_name, chain_type, search_type="similarity", search_kwargs=None):
 
     embeddings_rag = load_embeddings(model_name)
     llm_rag = load_model(model_name, temperature=0.1)
 
-    retrieval_qa_chain = agent_lc_factory(all_docs, chain_type, embeddings_rag, llm_rag, search_kwargs,
-                                          search_type, collection_name="RAG_LC_Agent")
+    chroma_client = chromadb.EphemeralClient()
+
+    vectorstore = Chroma.from_documents(
+        documents=all_docs,
+        embedding=embeddings_rag,
+        client=chroma_client,
+        collection_name="RAG_LC_Agent"
+    )
+
+    # vectorstore = get_store() # embeddings_rag, collection_name="RAG_LC_Agent")
+    retrieval_qa_chain = agent_lc_factory(chain_type, llm_rag, search_kwargs,
+                                          search_type, vectorstore)
 
     def _handle_error(error: ToolException) -> str:
         if error == JSONDecodeError:
@@ -111,7 +122,8 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
     agent_executor = AgentExecutor(
         agent=agent,
         tools=lc_tools,
-        handle_parsing_errors="Check your output and make sure it conforms!"
+        handle_parsing_errors="Check your output and make sure it conforms to required format!"
+                              "Format is Action:```$JSON_BLOB``` then Observation"
                               " Do not output an action and a final answer at the same time.")
     ## END LANGCHAIN
     return agent_executor
@@ -129,7 +141,7 @@ def main():
     st.sidebar.subheader("RAG Agent Model")
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
                                       captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
-                                      index=0, disabled=agent_model != "OPENAI")
+                                      index=1, disabled=agent_model != "OPENAI")
 
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
@@ -150,64 +162,77 @@ def main():
     search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
                                                     "similarity_score_threshold"])
 
-    st.header("RAG agent with LangChain")
-    agent = configure_agent(model_name, chain_type, search_type, {"k":k})
+    pdfs = st.file_uploader("Document(s) à transmettre", type=['pdf', 'txt', 'md'], accept_multiple_files=True)
 
-    history = StreamlitChatMessageHistory(key="chat_history")
-    if len(history.messages) == 0:
-        history.add_ai_message("What do you want to know?")
+    disabled = True
 
-    view_messages = st.expander("View the message contents in session state")
+    docs = []
+    # if st.button("Transmettre", disabled=disabled):
+        # calling an internal function for adapting LC or LI Document
+    docs = _load_doc(pdfs)
 
-    chain_with_history = RunnableWithMessageHistory(
-        agent,
-        lambda session_id: history,
-        input_messages_key="input",
-        history_messages_key="chat_history",
-    )
+    if (docs is not None) and (len(docs)):
+        disabled = False
 
-    # Display chat messages from history on app rerun
-    for message in history.messages:
-        with st.chat_message(message.type):
-            st.markdown(message.content)
+    if not disabled:
 
-    # Accept user input
-    if prompt := st.chat_input():
-        # Add user message to chat history
-        # Note: new messages are saved to history automatically by Langchain during run
-        # st.session_state.messages.append({"role": "user", "content": prompt})
-        # Display user message in chat message container
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        history = StreamlitChatMessageHistory(key="chat_history")
+        if len(history.messages) == 0:
+            history.add_ai_message("What do you want to know?")
 
-        # Display assistant response in chat message container
-        with st.chat_message("assistant"):
+        view_messages = st.expander("View the message contents in session state")
+
+        st.header("RAG agent with LangChain")
+        agent = configure_agent(docs, model_name, chain_type, search_type, {"k": k})
+
+        chain_with_history = RunnableWithMessageHistory(
+            agent,
+            lambda session_id: history,
+            input_messages_key="input",
+            history_messages_key="chat_history",
+        )
+
+        # Display chat messages from history on app rerun
+        for message in history.messages:
+            with st.chat_message(message.type):
+                st.markdown(message.content)
+
+        # Accept user input
+        if prompt := st.chat_input():
+            # Add user message to chat history
+            # Note: new messages are saved to history automatically by Langchain during run
+            # st.session_state.messages.append({"role": "user", "content": prompt})
+            # Display user message in chat message container
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
             # Display assistant response in chat message container
-            with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
-                                    tags=["LangChain", "Agent"]):
-                config = {"configurable": {"session_id": "any"}}
-                response = chain_with_history.invoke(
-                    input={
-                        "input": prompt
-                    },
-                    config=config
-                )
-                answer = f"🦜: {response['output']}"
-                st.write(answer)
+            with st.chat_message("assistant"):
+                # Display assistant response in chat message container
+                with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
+                                        tags=["LangChain", "Agent"]):
+                    config = {"configurable": {"session_id": "any"}}
+                    response = chain_with_history.invoke(
+                        input={
+                            "input": prompt
+                        },
+                        config=config
+                    )
+                    answer = f"🦜: {response['output']}"
+                    st.write(answer)
 
-    # Draw the messages at the end, so newly generated ones show up immediately
-    with view_messages:
-        """
-        Message History initialized with:
-        ```python
-        msgs = StreamlitChatMessageHistory(key="chat_history")
-        ```
-
-        Contents of `st.session_state.chat_history`:
-        """
-        view_messages.json(st.session_state.chat_history)
+        # Draw the messages at the end, so newly generated ones show up immediately
+        with view_messages:
+            """
+            Message History initialized with:
+            ```python
+            msgs = StreamlitChatMessageHistory(key="chat_history")
+            ```
+    
+            Contents of `st.session_state.chat_history`:
+            """
+            view_messages.json(st.session_state.chat_history)
 
 
 if __name__ == "__main__":
-    load_doc()
     main()
