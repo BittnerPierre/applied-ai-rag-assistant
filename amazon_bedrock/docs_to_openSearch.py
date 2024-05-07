@@ -6,6 +6,7 @@ from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader, PyPDFDirectoryLoader
 from urllib.parse import urlparse
+import click
 
 # Load environment variables
 load_dotenv()
@@ -36,44 +37,6 @@ client = OpenSearch(
     pool_maxsize=20
 )
 
-# load PDF and chunk
-# Create a local directory to store the downloaded PDF files
-local_dir = "/Users/loicsteve/Desktop/applied-ai-rag-assistant/amazon_bedrock/pdfs"
-if not os.path.exists(local_dir):
-    os.makedirs(local_dir)
-
-# Download the PDF files from S3 to the local directory
-for obj in s3.list_objects(Bucket=bucket_name, Prefix=prefix)["Contents"]:
-    file_name = obj["Key"].split("/")[-1]
-    local_file_path = os.path.join(local_dir, file_name)  # Include filename in local path
-
-    # Check if the destination path already exists and is a directory
-    if os.path.isdir(local_file_path):
-        continue  # Skip this iteration if it's a directory
-
-    # Download the file from S3 if it doesn't already exist locally
-    s3.download_file(Bucket=bucket_name, Key=obj["Key"], Filename=local_file_path)
-# Load the PDF files using PyPDFDirectoryLoader
-loader = PyPDFDirectoryLoader(local_dir)
-documents = loader.load()
-
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=100,      # overlap between chunks
-)
-
-#  The splitting
-doc = text_splitter.split_documents(documents)
-
-# Providing insights into the average length of documents, and amount of character before and after splitting
-avg_doc_length = lambda documents: sum([len(doc.page_content) for doc in documents]) // len(documents)
-avg_char_count_pre = avg_doc_length(documents)
-avg_char_count_post = avg_doc_length(doc)
-print(f'Average length among {len(documents)} documents loaded is {avg_char_count_pre} characters.')
-print(f'After the split we have {len(doc)} documents more than the original {len(documents)}.')
-print(f'Average length among {len(doc)} documents (after split) is {avg_char_count_post} characters.')
-
-# Embedding the documents into the OpenSearch
 def get_embedding(body):
     """
     This function is used to generate the embeddings for a specific chunk of text
@@ -89,8 +52,7 @@ def get_embedding(body):
     embedding = response_body.get('embedding')
     return embedding
 
-# indexing documents
-def indexDoc(client, vectors, text):
+def index_document(client, vectors, text):
     """
     This function indexing the documents and vectors into Amazon OpenSearch Serverless.
     :param client: The instantiation of your OpenSearch Serverless instance.
@@ -109,17 +71,68 @@ def indexDoc(client, vectors, text):
     print(response)
     return response
 
-# The process of iterating through each chunk of document we are trying to index, generating the embeddings, and indexing the document.
-for i in doc:
-    # The text data of each chunk
-    exampleContent = i.page_content
-    # The embeddings of each chunk
-    exampleInput = json.dumps({"inputText": exampleContent})
-    exampleVectors = get_embedding(exampleInput)
-    # setting the text data as the text variable, and generated vector to a vector variable
-    text = exampleContent
-    vectors = exampleVectors
-    # calling the indexDoc function, passing in the OpenSearch Client, the created vector, and corresponding text data
-    indexDoc(client, vectors, text)
+@click.command()
+@click.option('--mode', default='local', help='Specify the mode to run the script (local or other).')
+def run(mode : str):
+    if mode == "local" :
+        loader = PyPDFLoader("/Users/loicsteve/Downloads/RefAE_NormeAPI.pdf")
+        documents = loader.load()
+    else:
+        # Create a local directory to store the downloaded PDF files
+        local_dir = "/Users/loicsteve/Desktop/applied-ai-rag-assistant/amazon_bedrock/pdfs"
+        os.makedirs(local_dir, exist_ok=True)
+        # if not os.path.exists(local_dir):
+        #     os.makedirs(local_dir)
 
+        #set to track downloaded files names
+        downloaded_files = set()
+
+        response = s3.list_objects(Bucket=bucket_name, Prefix=prefix)
+
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                file_name = os.path.basename(obj["Key"])
+                local_file_path = os.path.join(local_dir, file_name)
+
+                # Skip if the file has already been downloaded
+                if file_name in downloaded_files:
+                    continue
+                    
+                try:
+                    # Ensure parent directory exists for the file
+                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+                    # Download the file from S3
+                    s3.download_file(Bucket=bucket_name, Key=obj["Key"], Filename=local_file_path)
+                    downloaded_files.add(file_name)  # Add to downloaded files set
+                except Exception as e:
+                    print(f"Error downloading {file_name}: {e}")
+
+        #Load the PDF files using PyPDFDirectoryLoader
+        loader = PyPDFDirectoryLoader(local_dir)
+        documents = loader.load()
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=100,      # overlap between chunks
+        )
+
+    doc = text_splitter.split_documents(documents)
+
+
+    # The process of iterating through each chunk of document we are trying to index, generating the embeddings, and indexing the document.
+    for i in doc:
+        # The text data of each chunk
+        exampleContent = i.page_content
+        # The embeddings of each chunk
+        exampleInput = json.dumps({"inputText": exampleContent})
+        exampleVectors = get_embedding(exampleInput)
+        # setting the text data as the text variable, and generated vector to a vector variable
+        text = exampleContent
+        vectors = exampleVectors
+        # calling the indexDoc function, passing in the OpenSearch Client, the created vector, and corresponding text data
+        index_document(client, vectors, text)
+
+
+if __name__ == '__main__':
+    run()
 
