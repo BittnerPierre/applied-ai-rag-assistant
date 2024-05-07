@@ -1,22 +1,20 @@
 import os
-import openai
-import tempfile
+
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
-from langchain.document_loaders import PyPDFLoader
 from langchain.memory import ConversationBufferMemory
 from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
 from dotenv import load_dotenv, find_dotenv
+
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
 import logging
 
+load_dotenv(find_dotenv())
+openai_api_key = os.getenv('OPENAI_API_KEY')
 
 # set logging
 logger = logging.getLogger('AI_assistant_feedback')
@@ -41,9 +39,6 @@ logger.addHandler(handler)
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
-
-st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
-st.title("Chat with Documents")
 
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
@@ -150,6 +145,8 @@ class PrintRetrievalHandler(BaseCallbackHandler):
         self.status.update(state="complete")
 
 
+st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
+
 # Configure the retriever with PDF files
 retriever = configure_retriever()
 
@@ -158,8 +155,7 @@ msgs = StreamlitChatMessageHistory()
 memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
 # Setup LLM and QA chain
-load_dotenv(find_dotenv())
-openai_api_key = os.getenv('OPENAI_API_KEY')
+
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
 )
@@ -175,40 +171,48 @@ suggested_questions = [
     "Comment assurez l'efficacité des performances ?",
 ]
 
-# Display "How can I help you?" message followed by suggested questions
-with st.chat_message("assistant"):
-    st.write("Comment puis-je vous aider?")
 
-# Display suggested questions in a 2x2 table
-col1, col2 = st.columns(2)
-for i, question in enumerate(suggested_questions, start=1):
-    if not st.session_state.get(f"suggested_question_{i}_hidden", False):
-        col = col1 if i % 2 != 0 else col2
-        if col.button(question):
-            st.session_state.user_query = question
+def main():
+    st.title("Chat with Documents")
 
+    # Display "How can I help you?" message followed by suggested questions
+    with st.chat_message("assistant"):
+        st.write("Comment puis-je vous aider?")
 
-# Chat interface
-avatars = {"human": "user", "ai": "assistant"}
-for i, msg in enumerate(msgs.messages):
-    st.chat_message(avatars[msg.type]).write(msg.content)
-    if msg.type == "ai":
-        streamlit_feedback(feedback_type = "thumbs",
-                           optional_text_label="[Optional]Est ce que cette reponse vous convient?",
-                           key=f"feedback_{i}",
-                           on_submit=lambda x: _submit_feedback(x, emoji="👍"))
+    # Display suggested questions in a 2x2 table
+    col1, col2 = st.columns(2)
+    for i, question in enumerate(suggested_questions, start=1):
+        if not st.session_state.get(f"suggested_question_{i}_hidden", False):
+            col = col1 if i % 2 != 0 else col2
+            if col.button(question):
+                st.session_state.user_query = question
 
 
-# Handle suggested questions§
-if "user_query" in st.session_state:
-    user_query = st.session_state.user_query
-    st.session_state.pop("user_query")  # Clear the session state
-    st.chat_message("user").write(user_query)
-    handle_assistant_response(user_query)
-    st.rerun()
+    # Chat interface
+    avatars = {"human": "user", "ai": "assistant"}
+    for i, msg in enumerate(msgs.messages):
+        st.chat_message(avatars[msg.type]).write(msg.content)
+        if msg.type == "ai":
+            streamlit_feedback(feedback_type = "thumbs",
+                               optional_text_label="[Optional]Est ce que cette reponse vous convient?",
+                               key=f"feedback_{i}",
+                               on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
-#Handle user queries
-if user_query := st.chat_input(placeholder="Ask me anything!"):
-    st.chat_message("user").write(user_query)
-    handle_assistant_response(user_query)
-    st.rerun()
+
+    # Handle suggested questions§
+    if "user_query" in st.session_state:
+        user_query = st.session_state.user_query
+        st.session_state.pop("user_query")  # Clear the session state
+        st.chat_message("user").write(user_query)
+        handle_assistant_response(user_query)
+        st.rerun()
+
+    #Handle user queries
+    if user_query := st.chat_input(placeholder="Ask me anything!"):
+        st.chat_message("user").write(user_query)
+        handle_assistant_response(user_query)
+        st.rerun()
+
+
+if __name__ == "__main__":
+    main()
