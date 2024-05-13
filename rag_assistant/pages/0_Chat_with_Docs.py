@@ -266,16 +266,7 @@ def handle_assistant_response(user_query):
         ai_response = ""
         with tracing_v2_enabled(project_name="Chat with Docs",
                                 tags=["LangChain", "Chain", "Chat History"]):
-            # v1   #user_query,
-            # ai_response = qa_chain ...
-            # v2
-            # for chunk in
-            # if 'answer' in chunk:
-            #     print(chunk['answer'], end="|", flush=True)
-            #     ai_response = chunk['answer']
-            #     container = st.empty()
-            #     container.write(ai_response)
-            # callbacks=[retrieval_handler, stream_handler]
+
 
             # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
             # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
@@ -288,6 +279,16 @@ def handle_assistant_response(user_query):
                                           },
             )
 
+            # DIFFERENT TESTS
+            # v1   #user_query,
+            # ai_response = qa_chain ...
+            # v2
+            # for chunk in
+            # if 'answer' in chunk:
+            #     ai_response = chunk['answer']
+            #     container = st.empty()
+            #     container.write(ai_response)
+            # callbacks=[retrieval_handler, stream_handler]
             # for chunk in
             # ai_response = conversational_rag_chain.invoke(
             #         input={"input": user_query},
@@ -305,7 +306,6 @@ def handle_assistant_response(user_query):
         #             ai_response = chunk['answer']
         #             container = st.empty()
         #             container.write(ai_response)
-            # ["answer"]
 
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
