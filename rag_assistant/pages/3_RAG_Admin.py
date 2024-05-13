@@ -49,9 +49,9 @@ def main():
         filter = {}
         if filename:
             filter["filename"] = filename
-        if document_type:
+        elif document_type:
             filter["document_type"] = document_type
-        if topic_name:
+        elif topic_name:
             filter["topic_name"] = topic_name
         # if filetype:
         #    filter["type"] = filetype

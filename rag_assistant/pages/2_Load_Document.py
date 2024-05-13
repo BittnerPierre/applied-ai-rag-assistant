@@ -48,7 +48,7 @@ def main():
             loader = PyPDFLoader(file_path)
             loaded_docs = loader.load()
             filename = os.path.basename(file_path)
-            metadata = {"type": "Whitepaper", "topic_name": "Cloud", "filename": filename}
+            # metadata = {"type": "Whitepaper", "topic_name": "Cloud", "filename": filename}
             # Assuming each document supports a metadata dictionary
             for doc in loaded_docs:
                 # Update metadata for each document

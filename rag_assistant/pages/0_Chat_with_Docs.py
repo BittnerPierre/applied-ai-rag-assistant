@@ -3,9 +3,9 @@ import os
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
-from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
+from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
+from langchain.chains import ConversationalRetrievalChain
 from dotenv import load_dotenv, find_dotenv
 
 from utils.utilsdoc import get_store
@@ -79,6 +79,9 @@ __template2__ = """You are an assistant designed to guide software application a
     To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
 
+st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
+
+
 @st.cache_resource(ttl="1h")
 def configure_retriever():
     vectordb = get_store()
@@ -98,28 +101,24 @@ def _submit_feedback(user_response, emoji=None):
 
 
 def handle_assistant_response(user_query):
-    with st.chat_message("Assistant"):
+    st.chat_message("user").write(user_query)
+    with st.chat_message("assistant"):
         retrieval_handler = PrintRetrievalHandler(st.container())
-        stream_handler = StreamHandler(st.empty(), initial_system_prompt=__template2__)
+        stream_handler = StreamHandler(st.empty())
         ai_response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 
 class StreamHandler(BaseCallbackHandler):
-    def __init__(self, container: st.delta_generator.DeltaGenerator, initial_text: str = "", initial_system_prompt: str = ""):
+    def __init__(self, container: st.delta_generator.DeltaGenerator, initial_text: str = ""):
         self.container = container
         self.text = initial_text
-        self.initial_system_prompt = initial_system_prompt
         self.run_id_ignore_token = None
 
     def on_llm_start(self, serialized: dict, prompts: list, **kwargs):
         # Workaround to prevent showing the rephrased question as output
         if prompts[0].startswith("Human"):
             self.run_id_ignore_token = kwargs.get("run_id")
-            user_prompt = prompts[0]  # La requête de l'utilisateur
-            combined_prompt = f"{self.initial_system_prompt}\n\n{user_prompt}"
-            prompts[0] = combined_prompt  # Mettre à jour la requête avec la combinaison
-
 
     def on_llm_new_token(self, token: str, **kwargs) -> None:
         if self.run_id_ignore_token == kwargs.get("run_id", False):
@@ -139,13 +138,11 @@ class PrintRetrievalHandler(BaseCallbackHandler):
 
     def on_retriever_end(self, documents, **kwargs):
         for idx, doc in enumerate(documents):
-            source = os.path.basename(doc.metadata["source"])
+            source = doc.metadata["filename"]
             self.status.write(f"**Document {idx} from {source}**")
             self.status.markdown(doc.page_content)
         self.status.update(state="complete")
 
-
-st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
 
 # Configure the retriever with PDF files
 retriever = configure_retriever()
@@ -155,7 +152,6 @@ msgs = StreamlitChatMessageHistory()
 memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
 # Setup LLM and QA chain
-
 llm = ChatOpenAI(
     model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
 )
@@ -172,20 +168,28 @@ suggested_questions = [
 ]
 
 
+def suggestion_clicked(question):
+    st.session_state.user_suggested_question = question
+
+
 def main():
     st.title("Chat with Documents")
 
     # Display "How can I help you?" message followed by suggested questions
-    with st.chat_message("assistant"):
-        st.write("Comment puis-je vous aider?")
+    # with st.chat_message("assistant"):
+    #     st.write("Comment puis-je vous aider?")
+
+    if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
+        msgs.clear()
+        msgs.add_ai_message("How can I help you?")
+
 
     # Display suggested questions in a 2x2 table
     col1, col2 = st.columns(2)
     for i, question in enumerate(suggested_questions, start=1):
-        if not st.session_state.get(f"suggested_question_{i}_hidden", False):
-            col = col1 if i % 2 != 0 else col2
-            if col.button(question):
-                st.session_state.user_query = question
+        # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
+        col = col1 if i % 2 != 0 else col2
+        col.button(question, on_click=suggestion_clicked, args=[question])
 
 
     # Chat interface
@@ -199,19 +203,15 @@ def main():
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
 
-    # Handle suggested questions§
-    if "user_query" in st.session_state:
-        user_query = st.session_state.user_query
-        st.session_state.pop("user_query")  # Clear the session state
-        st.chat_message("user").write(user_query)
+    # Handle suggested questions
+    if "user_suggested_question" in st.session_state:
+        user_query = st.session_state.user_suggested_question
+        st.session_state.pop("user_suggested_question")  # Clear the session state
         handle_assistant_response(user_query)
-        st.rerun()
 
     #Handle user queries
     if user_query := st.chat_input(placeholder="Ask me anything!"):
-        st.chat_message("user").write(user_query)
         handle_assistant_response(user_query)
-        st.rerun()
 
 
 if __name__ == "__main__":
