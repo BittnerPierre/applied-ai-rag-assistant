@@ -1,17 +1,28 @@
 import os
 
 import streamlit as st
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains.history_aware_retriever import create_history_aware_retriever
+from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.chains import ConversationalRetrievalChain
+from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
 from dotenv import load_dotenv, find_dotenv
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, \
+    HumanMessagePromptTemplate
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.tracers.context import tracing_v2_enabled
 
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
 import logging
+
+from utils.utilsllm import load_model
 
 load_dotenv(find_dotenv())
 openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -40,6 +51,7 @@ logger.addHandler(handler)
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
 
+sessionid = "abc123"
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -79,36 +91,6 @@ __template2__ = """You are an assistant designed to guide software application a
     To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
 
-st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
-
-
-@st.cache_resource(ttl="1h")
-def configure_retriever():
-    vectordb = get_store()
-
-    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
-
-    return retriever
-
-
-def _submit_feedback(user_response, emoji=None):
-    if user_response['score'] == '👍':
-        feedback_score = '+1'
-    else:
-        feedback_score = '-1'
-    logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
-    return user_response
-
-
-def handle_assistant_response(user_query):
-    st.chat_message("user").write(user_query)
-    with st.chat_message("assistant"):
-        retrieval_handler = PrintRetrievalHandler(st.container())
-        stream_handler = StreamHandler(st.empty())
-        ai_response = qa_chain.run(user_query, callbacks=[retrieval_handler, stream_handler])
-        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
-
-
 class StreamHandler(BaseCallbackHandler):
     def __init__(self, container: st.delta_generator.DeltaGenerator, initial_text: str = ""):
         self.container = container
@@ -144,20 +126,128 @@ class PrintRetrievalHandler(BaseCallbackHandler):
         self.status.update(state="complete")
 
 
+def get_session_history(session_id: str) -> BaseChatMessageHistory:
+    if session_id not in st.session_state.store:
+        st.session_state.store[session_id] = StreamlitChatMessageHistory(key="chat_history")
+    return st.session_state.store[session_id]
+
+
+def configure_retriever():
+    vectordb = get_store()
+
+    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
+
+    return retriever
+
+
+def _submit_feedback(user_response, emoji=None):
+    if user_response['score'] == '👍':
+        feedback_score = '+1'
+    else:
+        feedback_score = '-1'
+    logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
+    return user_response
+
+
+st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
+
+
 # Configure the retriever with PDF files
 retriever = configure_retriever()
 
 # Setup memory for contextual conversation
-msgs = StreamlitChatMessageHistory()
-memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
+
+st.session_state.store = {}
+
+#
+# L     L     MM     MM
+# L     L     M M   M M
+# L     L     M  M M  M
+# LLLL  LLLL  M   M   M
+#
 
 # Setup LLM and QA chain
-llm = ChatOpenAI(
-    model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
+llm = load_model(streaming=False)
+    # ChatOpenAI(
+    # model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
+# ))
+
+# msgs = StreamlitChatMessageHistory()
+msgs = get_session_history(sessionid)
+memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
+
+### Contextualize question ###
+contextualize_q_system_prompt = """Given a chat history and the latest user question \
+which might reference context in the chat history, formulate a standalone question \
+which can be understood without the chat history. Do NOT answer the question, \
+just reformulate it if needed and otherwise return it as is."""
+contextualize_q_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", contextualize_q_system_prompt),
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ]
+)
+history_aware_retriever = create_history_aware_retriever(
+    llm, retriever, contextualize_q_prompt
 )
 
+### Answer question ###
+qa_system_prompt = """You are an assistant for question-answering tasks. \
+Use the following pieces of retrieved context to answer the question. \
+If you don't know the answer, just say that you don't know. \
+Use three sentences maximum and keep the answer concise.\
+
+{context}"""
+qa_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", qa_system_prompt),
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ]
+)
+
+question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+
+rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+
+conversational_rag_chain = RunnableWithMessageHistory(
+    rag_chain,
+    get_session_history,
+    input_messages_key="input",
+    history_messages_key="chat_history",
+    output_messages_key="answer",
+)
+
+
+llm_stream = load_model(streaming=True)
+
+
+general_system_template = r""" 
+Given a specific context, please give a short answer to the question,
+ covering the required advices in general
+ 
+Context:
+----
+{context}
+----
+Please respond while maintaining the same writing style as used in this excerpt.
+Maintain the same language as the follow up input message.
+"""
+
+# Was in the previous prompt
+#  and then provide the names all of relevant (even if it relates a bit) products.
+
+general_user_template = "Question:```{question}```"
+messages = [
+            SystemMessagePromptTemplate.from_template(general_system_template),
+            HumanMessagePromptTemplate.from_template(general_user_template)
+]
+qa_prompt = ChatPromptTemplate.from_messages( messages )
+
 qa_chain = ConversationalRetrievalChain.from_llm(
-    llm, retriever=retriever, memory=memory, verbose=True
+    llm_stream, retriever=retriever, memory=memory, verbose=True,
+    combine_docs_chain_kwargs={'prompt': qa_prompt}
 )
 
 suggested_questions = [
@@ -166,6 +256,59 @@ suggested_questions = [
     "Quels sont les mécanismes d'authentification API ?",
     "Comment assurez l'efficacité des performances ?",
 ]
+
+
+def handle_assistant_response(user_query):
+    st.chat_message("user").write(user_query)
+    with (st.chat_message("assistant")):
+        retrieval_handler = PrintRetrievalHandler(st.container())
+        stream_handler = StreamHandler(st.empty())
+        ai_response = ""
+        with tracing_v2_enabled(project_name="Chat with Docs",
+                                tags=["LangChain", "Chain", "Chat History"]):
+            # v1   #user_query,
+            # ai_response = qa_chain ...
+            # v2
+            # for chunk in
+            # if 'answer' in chunk:
+            #     print(chunk['answer'], end="|", flush=True)
+            #     ai_response = chunk['answer']
+            #     container = st.empty()
+            #     container.write(ai_response)
+            # callbacks=[retrieval_handler, stream_handler]
+
+            # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
+            # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
+            ai_response = qa_chain.invoke({"question": user_query},
+                                          {"configurable": {"session_id": sessionid},
+                                              "callbacks": [
+                                              retrieval_handler,
+                                              stream_handler
+                                            ]
+                                          },
+            )
+
+            # for chunk in
+            # ai_response = conversational_rag_chain.invoke(
+            #         input={"input": user_query},
+            #         config={
+            #             "configurable": {"session_id": sessionid},
+            #             "callbacks": [
+            #                 retrieval_handler,
+            #                 # stream_handler
+            #             ]
+            #         },
+            #     )["answer"]
+            # st.markdown(ai_response)
+        # :
+        #         if 'answer' in chunk:
+        #             ai_response = chunk['answer']
+        #             container = st.empty()
+        #             container.write(ai_response)
+            # ["answer"]
+
+        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
+
 
 
 def suggestion_clicked(question):
@@ -178,6 +321,8 @@ def main():
     # Display "How can I help you?" message followed by suggested questions
     # with st.chat_message("assistant"):
     #     st.write("Comment puis-je vous aider?")
+
+    msgs = get_session_history(sessionid)
 
     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
         msgs.clear()
@@ -194,11 +339,12 @@ def main():
 
     # Chat interface
     avatars = {"human": "user", "ai": "assistant"}
+    msgs = get_session_history(sessionid)
     for i, msg in enumerate(msgs.messages):
         st.chat_message(avatars[msg.type]).write(msg.content)
         if msg.type == "ai":
             streamlit_feedback(feedback_type = "thumbs",
-                               optional_text_label="[Optional]Est ce que cette reponse vous convient?",
+                               optional_text_label="Cette réponse vous convient-elle?",
                                key=f"feedback_{i}",
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 

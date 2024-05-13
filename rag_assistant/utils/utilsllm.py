@@ -22,7 +22,7 @@ openai.api_key = os.environ['OPENAI_API_KEY']
 mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 
-def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
+def load_model(model_name: str = None, temperature: float = 0, streaming:bool = False) -> BaseChatModel:
 
     model = None
     if model_name is None:
@@ -42,7 +42,7 @@ def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
     elif model == "OPENAI":
         if model_name is None:
             model_name = config['OPENAI']['OPENAI_MODEL_NAME']
-        llm = ChatOpenAI(model_name=model_name, temperature=temperature)
+        llm = ChatOpenAI(model_name=model_name, temperature=temperature, streaming = streaming)
     elif model == "MISTRAL":
         if model_name is None:
             model_name = config['MISTRAL']['CHAT_MODEL']
