@@ -31,7 +31,8 @@ topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "O
 
 model_to_index = {
     "OPENAI": 0,
-    "MISTRAL": 1
+    "MISTRAL": 1,
+    "ANTHROPIC": 2
 }
 
 
@@ -49,6 +50,7 @@ def load_sidebar():
         st.sidebar.subheader("LangChain model provider")
         st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
+        st.sidebar.checkbox("Anthropic", LLM_MODEL == "ANTHROPIC", disabled=True)
 
 
 @st.cache_resource(ttl="1h")
@@ -135,11 +137,15 @@ def main():
                                   captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                   index=2, disabled=agent_model != "MISTRAL")
 
+    model_name_anthropic = st.sidebar.ratio("Anthropic Model", ["claude-v2:1"], captions=["Claude v2"], index=0, disabled=agent_model != "ANTHROPIC")
+
     model_name = None
     if agent_model == "MISTRAL":
         model_name = model_name_mistral
     elif agent_model == "OPENAI":
         model_name = model_name_gpt
+    elif agent_model == "ANTHROPIC":
+        model_name = model_name_anthropic
 
     ## OLD STUFF WITH LANGCHAIN, COMMENTED TO FOCUS ON LLAMAINDEX AGENT
     chain_type = st.sidebar.radio("Chain type (LangChain)",
