@@ -1,4 +1,5 @@
 import os
+import threading
 
 import streamlit as st
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -21,6 +22,9 @@ from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
 import logging
+
+from streamlit.runtime.scriptrunner import add_script_run_ctx
+from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 from utils.utilsllm import load_model
 
@@ -92,15 +96,20 @@ __template2__ = """You are an assistant designed to guide software application a
 
 
 class StreamHandler(BaseCallbackHandler):
-    def __init__(self, container: st.delta_generator.DeltaGenerator, initial_text: str = ""):
+    def __init__(self, container: st.delta_generator.DeltaGenerator, ctx, initial_text: str = ""):
         self.container = container
         self.text = initial_text
         self.run_id_ignore_token = None
+        self.ctx = ctx
 
     def on_llm_start(self, serialized: dict, prompts: list, **kwargs):
         # Workaround to prevent showing the rephrased question as output
+        # THIS TRICKS DOES NOT WORK IF THERE IS A SYSTEM PROMPT
+        # SO QUESTION IS SHOWED WHEN STREAMING AND THEN CLEARED with final result
         if prompts[0].startswith("Human"):
             self.run_id_ignore_token = kwargs.get("run_id")
+        # adding current thread to streamlit context to be able to display streaming
+        add_script_run_ctx(threading.current_thread(), self.ctx)
 
     def on_llm_new_token(self, token: str, **kwargs) -> None:
         if self.run_id_ignore_token == kwargs.get("run_id", False):
@@ -111,10 +120,13 @@ class StreamHandler(BaseCallbackHandler):
 
 # Define the callback handler for printing retrieval information
 class PrintRetrievalHandler(BaseCallbackHandler):
-    def __init__(self, container):
+    def __init__(self, container, ctx):
         self.status = container.status("**Context Retrieval**")
+        self.ctx = ctx
 
     def on_retriever_start(self, serialized: dict, query: str, **kwargs):
+        # adding current thread to streamlit context to be able to display streaming
+        add_script_run_ctx(threading.current_thread(), self.ctx)
         self.status.write(f"**Question:** {query}")
         self.status.update(label=f"**Context Retrieval:** {query}")
 
@@ -167,10 +179,7 @@ st.session_state.store = {}
 #
 
 # Setup LLM and QA chain
-llm = load_model(streaming=False)
-    # ChatOpenAI(
-    # model_name="gpt-3.5-turbo", openai_api_key=openai_api_key, temperature=0, streaming=True
-# ))
+llm = load_model(streaming=True)
 
 # msgs = StreamlitChatMessageHistory()
 msgs = get_session_history(sessionid)
@@ -260,53 +269,47 @@ suggested_questions = [
 
 def handle_assistant_response(user_query):
     st.chat_message("user").write(user_query)
-    with (st.chat_message("assistant")):
-        retrieval_handler = PrintRetrievalHandler(st.container())
-        stream_handler = StreamHandler(st.empty())
+    with ((st.chat_message("assistant"))):
+        # Retrieving the streamlit context to bind it to call back
+        # in order to write in another threadcontext
+        ctx = get_script_run_ctx()
+        retrieval_handler = PrintRetrievalHandler(st.container(), ctx)
+        # RETRIEVE THE CONTAINER TO CLEAR IT LATER to not show question twice
+        e = st.empty()
+        stream_handler = StreamHandler(e, ctx)
         ai_response = ""
         with tracing_v2_enabled(project_name="Chat with Docs",
                                 tags=["LangChain", "Chain", "Chat History"]):
-
-
+            # CODE WORKING BUT ALL LC API
             # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
             # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
-            ai_response = qa_chain.invoke({"question": user_query},
-                                          {"configurable": {"session_id": sessionid},
-                                              "callbacks": [
-                                              retrieval_handler,
-                                              stream_handler
-                                            ]
-                                          },
-            )
+            # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
+            # ai_response = qa_chain.invoke({"question": user_query},
+            #                               {"configurable": {"session_id": sessionid},
+            #                                   "callbacks": [
+            #                                   retrieval_handler,
+            #                                   stream_handler
+            #                                 ]
+            #                               },
+            # )["answer"]
+            # END CODE WORKING WITH ALL LC API
 
-            # DIFFERENT TESTS
-            # v1   #user_query,
-            # ai_response = qa_chain ...
-            # v2
-            # for chunk in
-            # if 'answer' in chunk:
-            #     ai_response = chunk['answer']
-            #     container = st.empty()
-            #     container.write(ai_response)
-            # callbacks=[retrieval_handler, stream_handler]
-            # for chunk in
-            # ai_response = conversational_rag_chain.invoke(
-            #         input={"input": user_query},
-            #         config={
-            #             "configurable": {"session_id": sessionid},
-            #             "callbacks": [
-            #                 retrieval_handler,
-            #                 # stream_handler
-            #             ]
-            #         },
-            #     )["answer"]
-            # st.markdown(ai_response)
-        # :
-        #         if 'answer' in chunk:
-        #             ai_response = chunk['answer']
-        #             container = st.empty()
-        #             container.write(ai_response)
-
+            # NEW API OF LANGCHAIN
+            # PROMPT NEED TO BE CHANGED
+            ai_response = conversational_rag_chain.invoke(
+                    input={"input": user_query},
+                    config={
+                        "configurable": {"session_id": sessionid},
+                        "callbacks": [
+                            retrieval_handler,
+                            stream_handler
+                        ]
+                    },
+                )["answer"]
+            # emptying container to remove initial question that is render by llm
+            e.empty()
+            with e.container():
+                st.markdown(ai_response)
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 
@@ -317,10 +320,6 @@ def suggestion_clicked(question):
 
 def main():
     st.title("Chat with Documents")
-
-    # Display "How can I help you?" message followed by suggested questions
-    # with st.chat_message("assistant"):
-    #     st.write("Comment puis-je vous aider?")
 
     msgs = get_session_history(sessionid)
 
