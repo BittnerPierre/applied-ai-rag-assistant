@@ -189,7 +189,9 @@ memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, r
 contextualize_q_system_prompt = """Given a chat history and the latest user question \
 which might reference context in the chat history, formulate a standalone question \
 which can be understood without the chat history. Do NOT answer the question, \
-just reformulate it if needed and otherwise return it as is."""
+just reformulate it if needed and otherwise return it as is.
+Maintain the same language as the user question.
+"""
 contextualize_q_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", contextualize_q_system_prompt),
@@ -206,6 +208,8 @@ qa_system_prompt = """You are an assistant for question-answering tasks. \
 Use the following pieces of retrieved context to answer the question. \
 If you don't know the answer, just say that you don't know. \
 Use three sentences maximum and keep the answer concise.\
+Maintain the same writing style as used in the context.\
+Keep the same language as the follow up question.
 
 {context}"""
 qa_prompt = ChatPromptTemplate.from_messages(
@@ -325,7 +329,7 @@ def main():
 
     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
         msgs.clear()
-        msgs.add_ai_message("How can I help you?")
+        msgs.add_ai_message("Comment puis-je vous aider?")
 
 
     # Display suggested questions in a 2x2 table
@@ -341,7 +345,7 @@ def main():
     msgs = get_session_history(sessionid)
     for i, msg in enumerate(msgs.messages):
         st.chat_message(avatars[msg.type]).write(msg.content)
-        if msg.type == "ai":
+        if (msg.type == "ai") and (i > 0):
             streamlit_feedback(feedback_type = "thumbs",
                                optional_text_label="Cette réponse vous convient-elle?",
                                key=f"feedback_{i}",
