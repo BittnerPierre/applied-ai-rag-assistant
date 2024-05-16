@@ -1,3 +1,4 @@
+from langchain_community.chat_models.bedrock import BedrockChat
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
@@ -16,7 +17,6 @@ from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_community.embeddings import BedrockEmbeddings
 
-
 config = load_config()
 
 # read local .env file
@@ -30,18 +30,18 @@ load_dotenv()
 
 # instantiating the Bedrock client, and passing in the CLI profile
 boto3.setup_default_session(profile_name=os.getenv("profile_name"))
-bedrock = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
+bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+                       endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
 
 model_kwargs = {
-        "maxTokenCount": 4096,
-        "stopSequences": [],
-        "temperature": 0,
-        "topP": 1,
-    }
+    "maxTokenCount": 4096,
+    "stopSequences": [],
+    "temperature": 0,
+    "topP": 1,
+}
 
 
 def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
-
     model = None
     if model_name is None:
         model = config['LLM']['LLM_MODEL']
@@ -49,8 +49,8 @@ def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
         model = "OPENAI"
     elif model_name.startswith("mistral"):
         model = "MISTRAL"
-    elif model_name.startswith("anthropic"):
-        model = "CLAUDE"
+    elif model_name.startswith("claude"):
+        model = "ANTHROPIC"
 
     if model == "AZURE":
         llm = AzureChatOpenAI(
@@ -71,13 +71,13 @@ def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
         if model_name is None:
             model_name = config['ANTHROPIC']['CHAT_MODEL']
         llm = BedrockChat(
-        client=bedrock,
-        model_id="anthropic.claude-v2:1",
-        model_kwargs=model_kwargs,
-        streaming = True,
-        callbacks = [StreamingStdOutCallbackHandler()],
-    )
-        
+            client=bedrock,
+            model_id=model_name,
+            model_kwargs=model_kwargs,
+            streaming=True,
+            callbacks=[StreamingStdOutCallbackHandler()],
+        )
+
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
@@ -96,7 +96,7 @@ def load_client():
     elif model == "MISTRAL":
         client = MistralClient(api_key=mistral_api_key)
     elif model == "ANTHROPIC":
-        client = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
+        client = bedrock
     else:
         raise NotImplementedError(f"{model} chat client not done")
 
@@ -104,7 +104,6 @@ def load_client():
 
 
 def load_embeddings(model_name: str = None) -> Embeddings:
-
     model = None
     if model_name is None:
         model = config['LLM']['LLM_MODEL']

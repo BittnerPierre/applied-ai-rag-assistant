@@ -35,13 +35,11 @@ model_to_index = {
     "ANTHROPIC": 2
 }
 
-
 human = '''{input}
     
     {agent_scratchpad}
     
     (reminder to respond in a JSON blob no matter what)'''
-
 
 
 def load_sidebar():
@@ -97,12 +95,12 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
         llm=llm_agent,
         tools=lc_tools,
         prompt=ChatPromptTemplate.from_messages(
-                [
-                    ("system", __structured_chat_agent__),
-                    MessagesPlaceholder("chat_history", optional=True),
-                    ("human", human),
-                ]
-            )
+            [
+                ("system", __structured_chat_agent__),
+                MessagesPlaceholder("chat_history", optional=True),
+                ("human", human),
+            ]
+        )
     )
 
     #
@@ -119,7 +117,6 @@ def configure_agent(model_name, chain_type=None, search_type="similarity", searc
 
 
 def main():
-
     st.title("Question Answering Assistant (RAG)")
 
     load_sidebar()
@@ -130,16 +127,17 @@ def main():
     st.sidebar.subheader("RAG Agent Model")
     # for openai only
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
-                                  captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
-                                  index=0, disabled=agent_model != "OPENAI")
+                                      captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
+                                      index=0, disabled=agent_model != "OPENAI")
 
-    model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
-                                  captions=["Mistral 7b", "Mixtral", "Mistral Large"],
-                                  index=2, disabled=agent_model != "MISTRAL")
+    model_name_mistral = st.sidebar.radio("Mistral Model",
+                                          ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
+                                          captions=["Mistral 7b", "Mixtral", "Mistral Large"],
+                                          index=2, disabled=agent_model != "MISTRAL")
 
-    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["claude-v2:1", "claude-v2"], 
-                                  captions=["Claude v2.1","Claude v2"], 
-                                  index=3, disabled=agent_model != "ANTHROPIC")
+    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["claude-v2:1", "claude-v2"],
+                                            captions=["Claude v2.1", "Claude v2"],
+                                            index=0, disabled=agent_model != "ANTHROPIC")
 
     model_name = None
     if agent_model == "MISTRAL":
@@ -157,10 +155,10 @@ def main():
     k = st.sidebar.slider('Number of relevant chunks', 2, 10, 4, 1)
 
     search_type = st.sidebar.radio("Search Type", ["similarity", "mmr",
-                                                    "similarity_score_threshold"])
+                                                   "similarity_score_threshold"])
 
     st.header("RAG agent with LangChain")
-    agent = configure_agent(model_name, chain_type, search_type, {"k":k})
+    agent = configure_agent(model_name, chain_type, search_type, {"k": k})
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -180,7 +178,6 @@ def main():
 
         # Display assistant response in chat message container
         with st.chat_message("assistant"):
-
             ## OLD WAY without agent
             # llm = load_model()
             # embeddings = load_embeddings()
