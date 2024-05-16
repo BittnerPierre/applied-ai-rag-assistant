@@ -11,7 +11,33 @@ from .config_loader import load_config
 from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from openai import AzureOpenAI
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain_community.embeddings import BedrockEmbeddings
+from langchain_community.chat_models.bedrock import BedrockChat
+import boto3
 
+config = load_config()
+
+# read local .env file
+_ = load_dotenv(find_dotenv())
+
+openai.api_key = os.environ['OPENAI_API_KEY']
+mistral_api_key = os.environ.get("MISTRAL_API_KEY")
+
+# loading in variables from .env file
+load_dotenv()
+
+# instantiating the Bedrock client, and passing in the CLI profile
+boto3.setup_default_session(profile_name=os.getenv("profile_name"))
+bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+                       endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
+
+model_kwargs = {
+    "maxTokenCount": 4096,
+    "stopSequences": [],
+    "temperature": 0,
+    "topP": 1,
+}
 
 config = load_config()
 
@@ -31,6 +57,8 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         model = "OPENAI"
     elif model_name.startswith("mistral"):
         model = "MISTRAL"
+    elif model_name.startswith("claude"):
+        model = "ANTHROPIC"
 
     if model == "AZURE":
         llm = AzureChatOpenAI(
@@ -47,6 +75,16 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         if model_name is None:
             model_name = config['MISTRAL']['CHAT_MODEL']
         llm = ChatMistralAI(mistral_api_key=mistral_api_key, model=model_name, temperature=temperature)
+    elif model == "ANTHROPIC":
+        if model_name is None:
+            model_name = config['ANTHROPIC']['CHAT_MODEL']
+        llm = BedrockChat(
+            client=bedrock,
+            model_id=model_name,
+            model_kwargs=model_kwargs,
+            streaming=True,
+            callbacks=[StreamingStdOutCallbackHandler()],
+        )
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
@@ -64,6 +102,8 @@ def load_client():
         )
     elif model == "MISTRAL":
         client = MistralClient(api_key=mistral_api_key)
+    elif model == "ANTHROPIC":
+        client = bedrock
     else:
         raise NotImplementedError(f"{model} chat client not done")
 
@@ -79,6 +119,8 @@ def load_embeddings(model_name: str = None) -> Embeddings:
         model = "OPENAI"
     elif model_name.startswith("mistral"):
         model = "MISTRAL"
+    elif model_name.startswith("claude"):
+        model = "ANTHROPIC"
 
     if model == "AZURE":
         embeddings = AzureOpenAIEmbeddings(
@@ -91,6 +133,8 @@ def load_embeddings(model_name: str = None) -> Embeddings:
         embeddings = OpenAIEmbeddings()
     elif model == "MISTRAL":
         embeddings = MistralAIEmbeddings()
+    elif model == "ANTHROPIC":
+        embeddings = BedrockEmbeddings(credentials_profile_name=os.getenv("profile_name"), region_name="eu-central-1")
     else:
         embeddings = OpenAIEmbeddings()
 
