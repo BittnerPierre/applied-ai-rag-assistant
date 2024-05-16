@@ -13,6 +13,8 @@ from .config_loader import load_config
 from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from openai import AzureOpenAI
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain_community.embeddings import BedrockEmbeddings
 
 
 config = load_config()
@@ -72,6 +74,8 @@ def load_model(model_name: str = None, temperature: float = 0) -> BaseChatModel:
         client=bedrock,
         model_id="anthropic.claude-v2:1",
         model_kwargs=model_kwargs,
+        streaming = True,
+        callbacks = [StreamingStdOutCallbackHandler()],
     )
         
     else:
@@ -123,18 +127,7 @@ def load_embeddings(model_name: str = None) -> Embeddings:
     elif model == "MISTRAL":
         embeddings = MistralAIEmbeddings()
     elif model == "ANTHROPIC":
-        def get_embedding(body):
-                modelId = 'amazon.titan-embed-text-v1'
-                accept = 'application/json'
-                contentType = 'application/json'
-                response = bedrock.invoke_model(body=body, modelId=modelId, accept=accept, contentType=contentType)
-                response_body = json.loads(response.get('body').read())
-                embedding = response_body.get('embedding')
-                return embedding
-        class BedrockEmbeddings(Embeddings):
-            def embed(self, text:str) -> list:
-                return [get_embedding(text)]
-        embeddings = BedrockEmbeddings()
+        embeddings = BedrockEmbeddings(credentials_profile_name=os.getenv("profile_name"), region_name="eu-central-1")
     else:
         embeddings = OpenAIEmbeddings()
 
