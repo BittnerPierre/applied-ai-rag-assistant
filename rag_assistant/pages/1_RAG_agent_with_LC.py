@@ -40,7 +40,8 @@ topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "O
 
 model_to_index = {
     "OPENAI": 0,
-    "MISTRAL": 1
+    "MISTRAL": 1,
+    "ANTHROPIC": 2
 }
 
 
@@ -50,6 +51,7 @@ def load_sidebar():
         st.sidebar.subheader("LangChain model provider")
         st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
+        st.sidebar.checkbox("Anthropic", LLM_MODEL == "ANTHROPIC", disabled=True)
 
 
 def _load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile]) -> list[Document]:
@@ -136,7 +138,7 @@ def main():
     load_sidebar()
 
     model_index = model_to_index[LLM_MODEL]
-    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=model_index)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "ANTHROPIC"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
@@ -146,12 +148,17 @@ def main():
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
+    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["claude-v2:1", "claude-v2"],
+                                            captions=["Claude v2.1", "Claude v2"],
+                                            index=0, disabled=agent_model != "ANTHROPIC")
 
     model_name = None
     if agent_model == "MISTRAL":
         model_name = model_name_mistral
     elif agent_model == "OPENAI":
         model_name = model_name_gpt
+    elif agent_model == "ANTHROPIC":
+        model_name = model_name_anthropic
 
     chain_type = st.sidebar.radio("Chain type (LangChain)",
                                   ["stuff", "map_reduce", "refine", "map_rerank"])
