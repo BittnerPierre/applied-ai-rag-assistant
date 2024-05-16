@@ -125,7 +125,7 @@ def main():
     load_sidebar()
 
     model_index = model_to_index[LLM_MODEL]
-    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=model_index)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "ANTHROPIC"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
     # for openai only
@@ -137,7 +137,9 @@ def main():
                                   captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                   index=2, disabled=agent_model != "MISTRAL")
 
-    model_name_anthropic = st.sidebar.ratio("Anthropic Model", ["claude-v2:1"], captions=["Claude v2"], index=0, disabled=agent_model != "ANTHROPIC")
+    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["claude-v2:1", "claude-v2"], 
+                                  captions=["Claude v2.1","Claude v2"], 
+                                  index=3, disabled=agent_model != "ANTHROPIC")
 
     model_name = None
     if agent_model == "MISTRAL":

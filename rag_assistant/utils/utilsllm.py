@@ -30,8 +30,8 @@ load_dotenv()
 
 # instantiating the Bedrock client, and passing in the CLI profile
 boto3.setup_default_session(profile_name=os.getenv("profile_name"))
-# bedrock = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
-bedrock_agent_runtime = boto3.client("bedrock-agent-runtime", "eu-central-1")
+bedrock = boto3.client('bedrock-runtime', 'eu-central-1', endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
+
 model_kwargs = {
         "maxTokenCount": 4096,
         "stopSequences": [],
