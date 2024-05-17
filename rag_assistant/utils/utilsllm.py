@@ -14,6 +14,8 @@ from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_community.embeddings import BedrockEmbeddings
 from langchain_community.chat_models.bedrock import BedrockChat
+# from langchain_aws import ChatBedrock
+from langchain.llms.bedrock import Bedrock
 import boto3
 
 config = load_config()
@@ -33,10 +35,10 @@ bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
                        endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
 
 model_kwargs = {
-    "maxTokenCount": 4096,
-    "stopSequences": [],
+    #"maxTokenCount": 4096,
+    #"stopSequences": [],
     "temperature": 0,
-    "topP": 1,
+    #"topP": 1,
 }
 
 config = load_config()
@@ -80,13 +82,15 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
             model_name = config['ANTHROPIC']['CHAT_MODEL']
         bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
                                endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
-        llm = BedrockChat(
+        llm = Bedrock(
             client=bedrock,
             model_id=model_name,
-            model_kwargs=model_kwargs,
+            #model_kwargs=model_kwargs,
+            #model_kwargs={"temperature": 0},
             streaming=True,
             callbacks=[StreamingStdOutCallbackHandler()],
         )
+
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
