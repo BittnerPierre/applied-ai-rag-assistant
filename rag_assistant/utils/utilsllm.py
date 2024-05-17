@@ -12,7 +12,7 @@ from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from openai import AzureOpenAI
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain_community.embeddings import BedrockEmbeddings
+from langchain_community.embeddings.bedrock import BedrockEmbeddings
 from langchain_community.chat_models.bedrock import BedrockChat
 # from langchain_aws import ChatBedrock
 from langchain.llms.bedrock import Bedrock
@@ -86,8 +86,8 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
             client=bedrock,
             model_id=model_name,
             # model_kwargs=model_kwargs,
-            streaming=True,
-            callbacks=[StreamingStdOutCallbackHandler()],
+            streaming=streaming,
+            #callbacks=[StreamingStdOutCallbackHandler()],
         )
 
     else:
