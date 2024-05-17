@@ -8,6 +8,8 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tools import ToolException, Tool
 from llama_index.embeddings.langchain import LangchainEmbedding
+from llama_index.llms.bedrock import Bedrock
+from llama_index.embeddings.bedrock import BedrockEmbedding
 
 from llama_index.llms.openai import OpenAI
 
@@ -81,6 +83,9 @@ def configure_agent(all_docs: list[Document], model_name, advanced_rag):
     elif model_name.startswith("mistral"):
         llm_rag = MistralAI(model=model_name, temperature=0.1)
         # embeddings_rag = MistralAIEmbedding()
+    elif model_name.startswith("anthropic"):
+        llm_rag = Bedrock(model=model_name, temperature=0.1)
+        embeddings_rag = BedrockEmbedding()
 
     #
     # Settings seems to be the preferred version to setup llm and embeddings with latest LI API

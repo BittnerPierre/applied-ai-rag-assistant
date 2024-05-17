@@ -83,7 +83,7 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         llm = BedrockChat(
             client=bedrock,
             model_id=model_name,
-            model_kwargs=model_kwargs,
+            # model_kwargs=model_kwargs,
             streaming=True,
             callbacks=[StreamingStdOutCallbackHandler()],
         )
