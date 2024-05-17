@@ -57,7 +57,7 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         model = "OPENAI"
     elif model_name.startswith("mistral"):
         model = "MISTRAL"
-    elif model_name.startswith("claude"):
+    elif model_name.startswith("anthropic"):
         model = "ANTHROPIC"
 
     if model == "AZURE":
@@ -78,6 +78,8 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
     elif model == "ANTHROPIC":
         if model_name is None:
             model_name = config['ANTHROPIC']['CHAT_MODEL']
+        bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+                               endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
         llm = BedrockChat(
             client=bedrock,
             model_id=model_name,
@@ -103,6 +105,8 @@ def load_client():
     elif model == "MISTRAL":
         client = MistralClient(api_key=mistral_api_key)
     elif model == "ANTHROPIC":
+        bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+                               endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
         client = bedrock
     else:
         raise NotImplementedError(f"{model} chat client not done")
