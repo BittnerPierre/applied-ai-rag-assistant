@@ -7,7 +7,6 @@ from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 
 import numpy as np
 
-from trulens_eval.feedback import Groundedness
 import nest_asyncio
 
 from rag_assistant.utils.utilsrag_lc import agent_lc_factory
@@ -36,7 +35,7 @@ from trulens_eval import (
     Feedback,
     TruLlama,
     OpenAI,
-    Tru, TruChain
+    Tru, TruChain, Select
 )
 
 openai = OpenAI()
@@ -53,13 +52,10 @@ qs_relevance = (
     .aggregate(np.mean)
 )
 
-grounded = Groundedness(groundedness_provider=openai)
-
 groundedness = (
-    Feedback(grounded.groundedness_measure_with_cot_reasons, name="Groundedness")
-        .on(TruLlama.select_source_nodes().node.text)
-        .on_output()
-        .aggregate(grounded.grounded_statements_aggregator)
+    Feedback(openai.groundedness_measure_with_cot_reasons, name = "Groundedness")
+    .on(Select.RecordCalls.retrieve.rets.collect())
+    .on_output()
 )
 
 feedbacks = [qa_relevance, qs_relevance, groundedness]

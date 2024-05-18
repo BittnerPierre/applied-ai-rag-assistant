@@ -165,7 +165,8 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
             collection_name=collection_name,
             persist_directory=persist_directory
         )
-        db.persist()
+        # Since Chroma 0.4.x the manual persistence method is no longer supported as docs are automatically persisted.
+        # db.persist()
     else:
         raise NotImplementedError(f"{vectordb} load_store not implemented yet")
 

@@ -4,7 +4,6 @@ from dotenv import load_dotenv, find_dotenv
 
 from llama_index.core import SimpleDirectoryReader, Settings
 from llama_index.embeddings.mistralai import MistralAIEmbedding
-from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.mistralai import MistralAI
 
 import rag_assistant.utils.utilsrag_li
@@ -16,7 +15,7 @@ import shutil
 
 import numpy as np
 
-from trulens_eval.feedback import Groundedness
+from trulens_eval.feedback import GroundTruthAgreement
 import nest_asyncio
 
 load_dotenv(find_dotenv())
@@ -43,7 +42,7 @@ from trulens_eval import (
     Feedback,
     TruLlama,
     OpenAI,
-    Tru
+    Tru, Select
 )
 
 openai = OpenAI()
@@ -60,17 +59,14 @@ qs_relevance = (
     .aggregate(np.mean)
 )
 
-grounded = Groundedness(groundedness_provider=openai)
-
 groundedness = (
-    Feedback(grounded.groundedness_measure_with_cot_reasons, name="Groundedness")
-        .on(TruLlama.select_source_nodes().node.text)
-        .on_output()
-        .aggregate(grounded.grounded_statements_aggregator)
+    Feedback(openai.groundedness_measure_with_cot_reasons, name = "Groundedness")
+    .on(Select.RecordCalls.retrieve.rets.collect())
+    .on_output()
 )
 
-feedbacks = [qa_relevance, qs_relevance, groundedness]
 
+feedbacks = [qa_relevance, qs_relevance, groundedness]
 
 def get_prebuilt_trulens_recorder(query_engine, app_id):
     tru_recorder = TruLlama(

@@ -41,6 +41,8 @@ def main():
 
     with st.form("Search in vDB"):
         search = st.text_input("Text")
+
+        print(f"search {search}")
         topic_name = st.selectbox("Topic", unique_topic_names, index=None)
         filename = st.selectbox("File Name", unique_filenames, index=None)
         filetype = st.selectbox("File type", ("Whitepaper", "Guide", "Tutorial", "FAQ"), index=None)
@@ -55,14 +57,15 @@ def main():
             filter["topic_name"] = topic_name
         # if filetype:
         #    filter["type"] = filetype
-
-        result = store.similarity_search(search,  k=5, filter=filter) # , kwargs={"score_threshold": .8}
         if st.form_submit_button("Search"):
-            st.write(result)
+            # add check for empty string as it is not supported by bedrock (or anthropic?)
+            if search != "":
+                result = store.similarity_search(search, k=5, filter=filter)  # , kwargs={"score_threshold": .8}
+                st.write(result)
 
     st.subheader("Data Management")
 
-    col1, col2 = st.columns(2);
+    col1, col2 = st.columns(2)
     with col1:
         file_name_to_delete = st.selectbox("Select File Name", unique_filenames, index=None)
         if st.button("Delete File data"):

@@ -5,7 +5,6 @@ import streamlit as st
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
-from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 from langchain.callbacks.base import BaseCallbackHandler
@@ -14,7 +13,6 @@ from dotenv import load_dotenv, find_dotenv
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, \
     HumanMessagePromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tracers.context import tracing_v2_enabled
 

@@ -34,14 +34,14 @@ load_dotenv(find_dotenv())
 config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
-LLM_MODEL = config['LLM']['LLM_MODEL']
+LLM_MODEL = config['MODEL_PROVIDER']['MODEL_PROVIDER']
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
 
 model_to_index = {
     "OPENAI": 0,
     "MISTRAL": 1,
-    "ANTHROPIC": 2
+    "BEDROCK": 2
 }
 
 
@@ -51,7 +51,7 @@ def load_sidebar():
         st.sidebar.subheader("LangChain model provider")
         st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
-        st.sidebar.checkbox("Anthropic", LLM_MODEL == "ANTHROPIC", disabled=True)
+        st.sidebar.checkbox("Bedrock", LLM_MODEL == "BEDROCK", disabled=True)
 
 
 def _load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile]) -> list[Document]:
@@ -100,12 +100,13 @@ def configure_agent(all_docs: list[Document], model_name, chain_type, search_typ
     ]
     ## START LANGCHAIN
     # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
-    llm_agent = load_model()
+    # defaulting to "gpt-4-turbo" because it is the only one resilient
+    llm_agent = load_model("gpt-4-turbo")
 
     prompt = ChatPromptTemplate.from_messages(
                 [
                     ("system", __structured_chat_agent__),
-                    MessagesPlaceholder("chat_history", optional=True),
+                    MessagesPlaceholder("rag_chat_history", optional=True),
                     ("human", human),
                 ]
             )
@@ -138,7 +139,7 @@ def main():
     load_sidebar()
 
     model_index = model_to_index[LLM_MODEL]
-    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "ANTHROPIC"], index=model_index)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "BEDROCK"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
@@ -148,17 +149,18 @@ def main():
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
-    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
+
+    model_name_bedrock = st.sidebar.radio("Bedrock Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
                                             captions=["Claude v2.1", "Claude v2"],
-                                            index=0, disabled=agent_model != "ANTHROPIC")
+                                            index=0, disabled=agent_model != "BEDROCK")
 
     model_name = None
     if agent_model == "MISTRAL":
         model_name = model_name_mistral
     elif agent_model == "OPENAI":
         model_name = model_name_gpt
-    elif agent_model == "ANTHROPIC":
-        model_name = model_name_anthropic
+    elif agent_model == "BEDROCK":
+        model_name = model_name_bedrock
 
     chain_type = st.sidebar.radio("Chain type (LangChain)",
                                   ["stuff", "map_reduce", "refine", "map_rerank"])
@@ -183,7 +185,7 @@ def main():
 
     if not disabled:
 
-        history = StreamlitChatMessageHistory(key="chat_history")
+        history = StreamlitChatMessageHistory(key="rag_chat_history")
         if len(history.messages) == 0:
             history.add_ai_message("What do you want to know?")
 
@@ -196,7 +198,7 @@ def main():
             agent,
             lambda session_id: history,
             input_messages_key="input",
-            history_messages_key="chat_history",
+            history_messages_key="rag_chat_history",
         )
 
         # Display chat messages from history on app rerun
@@ -233,12 +235,12 @@ def main():
             """
             Message History initialized with:
             ```python
-            msgs = StreamlitChatMessageHistory(key="chat_history")
+            msgs = StreamlitChatMessageHistory(key="rag_chat_history")
             ```
     
-            Contents of `st.session_state.chat_history`:
+            Contents of `st.session_state.rag_chat_history`:
             """
-            view_messages.json(st.session_state.chat_history)
+            view_messages.json(st.session_state.rag_chat_history)
 
 
 if __name__ == "__main__":

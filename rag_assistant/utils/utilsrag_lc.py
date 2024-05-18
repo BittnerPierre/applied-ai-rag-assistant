@@ -16,7 +16,7 @@ from langchain.callbacks.manager import trace_as_chain_group
 from langchain.utils.openai_functions import convert_pydantic_to_openai_function
 from langchain.output_parsers.openai_functions import PydanticOutputFunctionsParser
 
-from langchain_openai.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.schema import StrOutputParser
 from langchain.schema.runnable import RunnableParallel, RunnablePassthrough
