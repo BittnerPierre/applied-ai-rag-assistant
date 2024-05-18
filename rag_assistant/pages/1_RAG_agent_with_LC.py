@@ -148,7 +148,7 @@ def main():
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
-    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["claude-v2:1", "claude-v2"],
+    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
                                             captions=["Claude v2.1", "Claude v2"],
                                             index=0, disabled=agent_model != "ANTHROPIC")
 

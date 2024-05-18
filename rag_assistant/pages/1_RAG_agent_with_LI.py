@@ -1,13 +1,18 @@
 from json import JSONDecodeError
 from typing import Union
+import os
 
+import boto3
 import chromadb
 import streamlit as st
+from chromadb.utils.embedding_functions import AmazonBedrockEmbeddingFunction
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tools import ToolException, Tool
 from llama_index.embeddings.langchain import LangchainEmbedding
+from llama_index.llms.bedrock import Bedrock
+from llama_index.embeddings.bedrock import BedrockEmbedding
 
 from llama_index.llms.openai import OpenAI
 
@@ -46,7 +51,8 @@ topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "O
 
 model_to_index = {
     "OPENAI": 0,
-    "MISTRAL": 1
+    "MISTRAL": 1,
+    "ANTHROPIC": 2
 }
 
 
@@ -56,6 +62,7 @@ def load_sidebar():
         st.sidebar.subheader("LangChain model provider")
         st.sidebar.checkbox("OpenAI", LLM_MODEL == "OPENAI", disabled=True)
         st.sidebar.checkbox("Mistral", LLM_MODEL == "MISTRAL", disabled=True)
+        st.sidebar.checkbox("Anthropic", LLM_MODEL == "ANTHROPIC", disabled=True)
 
 
 def _load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile]) -> list[Document]:
@@ -81,6 +88,13 @@ def configure_agent(all_docs: list[Document], model_name, advanced_rag):
     elif model_name.startswith("mistral"):
         llm_rag = MistralAI(model=model_name, temperature=0.1)
         # embeddings_rag = MistralAIEmbedding()
+    elif model_name.startswith("anthropic"):
+        llm_rag = Bedrock(model=model_name,
+                          temperature=0.1,
+                          profile_name=os.getenv("profile_name"),
+                          region_name="eu-central-1")
+        # model="amazon.titan-embed-g1-text-02",
+        # embeddings_rag = BedrockEmbedding(credentials_profile_name=os.getenv("profile_name"), region_name="eu-central-1")
 
     #
     # Settings seems to be the preferred version to setup llm and embeddings with latest LI API
@@ -88,7 +102,9 @@ def configure_agent(all_docs: list[Document], model_name, advanced_rag):
     Settings.embed_model = embeddings_rag
 
     chroma_client = chromadb.EphemeralClient()
-    chroma_collection = chroma_client.get_or_create_collection("RAG_LI_Agent")
+    session = boto3.Session(profile_name=os.getenv("profile_name"), region_name="eu-central-1")
+    bedrock_function = AmazonBedrockEmbeddingFunction(session=session)
+    chroma_collection = chroma_client.get_or_create_collection(name="RAG_LI_Agent", embedding_function=bedrock_function)
 
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 
@@ -160,7 +176,7 @@ def main():
     load_sidebar()
 
     model_index = model_to_index[LLM_MODEL]
-    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL"], index=model_index)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "ANTHROPIC"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
@@ -171,11 +187,17 @@ def main():
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
 
+    model_name_anthropic = st.sidebar.radio("Anthropic Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
+                                            captions=["Claude v2.1", "Claude v2"],
+                                            index=0, disabled=agent_model != "ANTHROPIC")
+
     model_name = None
     if agent_model == "MISTRAL":
         model_name = model_name_mistral
     elif agent_model == "OPENAI":
         model_name = model_name_gpt
+    elif agent_model == "ANTHROPIC":
+        model_name = model_name_anthropic
 
     st.sidebar.subheader("RAG Agent params")
     advanced_rag = st.sidebar.radio("Advanced RAG (Llamaindex)", ["direct_query", "subquery", "automerging",

@@ -12,8 +12,10 @@ from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from openai import AzureOpenAI
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain_community.embeddings import BedrockEmbeddings
+from langchain_community.embeddings.bedrock import BedrockEmbeddings
 from langchain_community.chat_models.bedrock import BedrockChat
+# from langchain_aws import ChatBedrock
+from langchain.llms.bedrock import Bedrock
 import boto3
 
 config = load_config()
@@ -33,10 +35,10 @@ bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
                        endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
 
 model_kwargs = {
-    "maxTokenCount": 4096,
-    "stopSequences": [],
+    #"maxTokenCount": 4096,
+    #"stopSequences": [],
     "temperature": 0,
-    "topP": 1,
+    #"topP": 1,
 }
 
 config = load_config()
@@ -57,7 +59,7 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         model = "OPENAI"
     elif model_name.startswith("mistral"):
         model = "MISTRAL"
-    elif model_name.startswith("claude"):
+    elif model_name.startswith("anthropic"):
         model = "ANTHROPIC"
 
     if model == "AZURE":
@@ -78,13 +80,16 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
     elif model == "ANTHROPIC":
         if model_name is None:
             model_name = config['ANTHROPIC']['CHAT_MODEL']
-        llm = BedrockChat(
+        bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+                               endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
+        llm = Bedrock(
             client=bedrock,
             model_id=model_name,
-            model_kwargs=model_kwargs,
-            streaming=True,
-            callbacks=[StreamingStdOutCallbackHandler()],
+            # model_kwargs=model_kwargs,
+            streaming=streaming,
+            #callbacks=[StreamingStdOutCallbackHandler()],
         )
+
     else:
         raise NotImplementedError(f"Model {model} unknown.")
 
@@ -103,6 +108,8 @@ def load_client():
     elif model == "MISTRAL":
         client = MistralClient(api_key=mistral_api_key)
     elif model == "ANTHROPIC":
+        bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+                               endpoint_url='https://bedrock-runtime.eu-central-1.amazonaws.com')
         client = bedrock
     else:
         raise NotImplementedError(f"{model} chat client not done")
