@@ -101,7 +101,7 @@ def configure_agent(all_docs: list[Document], model_name, chain_type, search_typ
     ## START LANGCHAIN
     # MODEL FOR LANGCHAIN IS DEFINE GLOBALLY IN CONF/CONFIG.INI
     # defaulting to "gpt-4-turbo" because it is the only one resilient
-    llm_agent = load_model("gpt-4-turbo")
+    llm_agent = load_model("gpt-4o")
 
     prompt = ChatPromptTemplate.from_messages(
                 [
@@ -142,9 +142,9 @@ def main():
     agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "BEDROCK"], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
-    model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo"],
-                                      captions=["GPT 3.5 Turbo", "GPT 4 Turbo"],
-                                      index=1, disabled=agent_model != "OPENAI")
+    model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o"],
+                                      captions=["GPT 3.5 Turbo", "GPT 4 Turbo", "GPT 4 Omni"],
+                                      index=0, disabled=agent_model != "OPENAI")
 
     model_name_mistral = st.sidebar.radio("Mistral Model", ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"],
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
