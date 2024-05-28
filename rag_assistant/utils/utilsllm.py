@@ -27,13 +27,11 @@ mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 # read local .env file
 _ = load_dotenv(find_dotenv())
 
-aws_profile_name = os.getenv("profile_name")
 aws_region_name = config["BEDROCK"]["AWS_REGION_NAME"]
 bedrock_endpoint_url = config["BEDROCK"]["BEDROCK_ENDPOINT_URL"]
 
 # instantiating the Bedrock client, and passing in the CLI profile
-boto3.setup_default_session(profile_name=aws_profile_name)
-bedrock = boto3.client('bedrock-runtime', aws_region_name,
+bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
                        endpoint_url=bedrock_endpoint_url)
 
 model_kwargs = {
@@ -133,7 +131,7 @@ def load_embeddings(model_name: str = None) -> Embeddings:
     elif model == "MISTRAL":
         embeddings = MistralAIEmbeddings()
     elif model == "BEDROCK":
-        embeddings = BedrockEmbeddings(credentials_profile_name=aws_profile_name, region_name=aws_region_name)
+        embeddings = BedrockEmbeddings(region_name="eu-central-1")
     else:
         embeddings = OpenAIEmbeddings()
 
