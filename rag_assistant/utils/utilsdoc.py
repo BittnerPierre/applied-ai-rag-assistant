@@ -91,7 +91,6 @@ def process_txt_folder(txt_input_folder_name, txt_folder_name):
 def empty_store(collection_name="Default") -> None:
 
     vectordb = config['VECTORDB']['vectordb']
-    print(f"""Vector DB: {vectordb}""")
 
     if vectordb == "faiss":
         raise NotImplementedError(f"Sorry, empty_store for {vectordb} not implemented yet!")
@@ -176,7 +175,6 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
 def get_store(embeddings: Embeddings = None, collection_name=None):
 
     vectordb = config['VECTORDB']['vectordb']
-    print(f"""Vector DB: {vectordb}""")
 
     if not embeddings:
         embeddings = load_embeddings()
@@ -204,7 +202,6 @@ def get_store(embeddings: Embeddings = None, collection_name=None):
         persist_directory = config['VECTORDB']['chroma_persist_directory']
         persistent_client = chromadb.PersistentClient(path=persist_directory)
 
-        print(f"""Persist Directory: {persist_directory}""")
         db = Chroma(client=persistent_client, collection_name=collection_name, embedding_function=embeddings)
     else:
         raise NotImplementedError(f"{vectordb} get_store not implemented yet")

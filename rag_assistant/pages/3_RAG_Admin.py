@@ -42,7 +42,6 @@ def main():
     with st.form("Search in vDB"):
         search = st.text_input("Text")
 
-        print(f"search {search}")
         topic_name = st.selectbox("Topic", unique_topic_names, index=None)
         filename = st.selectbox("File Name", unique_filenames, index=None)
         filetype = st.selectbox("File type", ("Whitepaper", "Guide", "Tutorial", "FAQ"), index=None)
@@ -69,12 +68,12 @@ def main():
     with col1:
         file_name_to_delete = st.selectbox("Select File Name", unique_filenames, index=None)
         if st.button("Delete File data"):
-            collection.delete(where={"filename": f"{file_name_to_delete}"})
+            collection.delete(where={"filename": {"$eq": f"{file_name_to_delete}"}})
 
     with col2:
         topic_name_to_delete = st.selectbox("Select Topic", unique_topic_names, index=None)
         if st.button("Delete Topic Data"):
-            collection.delete(where={"topic_name": f"{topic_name_to_delete}"})
+            collection.delete(where={"topic_name": {"$eq": f"{topic_name_to_delete}"}})
 
     if st.button("Delete collection"):
         empty_store(collection_name=collection_name)
