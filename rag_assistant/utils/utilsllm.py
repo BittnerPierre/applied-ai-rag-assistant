@@ -31,7 +31,7 @@ aws_region_name = config["BEDROCK"]["AWS_REGION_NAME"]
 bedrock_endpoint_url = config["BEDROCK"]["BEDROCK_ENDPOINT_URL"]
 
 # instantiating the Bedrock client, and passing in the CLI profile
-bedrock = boto3.client('bedrock-runtime', 'eu-central-1',
+bedrock = boto3.client('bedrock-runtime', aws_region_name,
                        endpoint_url=bedrock_endpoint_url)
 
 model_kwargs = {
@@ -131,7 +131,7 @@ def load_embeddings(model_name: str = None) -> Embeddings:
     elif model == "MISTRAL":
         embeddings = MistralAIEmbeddings()
     elif model == "BEDROCK":
-        embeddings = BedrockEmbeddings(region_name="eu-central-1")
+        embeddings = BedrockEmbeddings(region_name=aws_region_name)
     else:
         embeddings = OpenAIEmbeddings()
 
