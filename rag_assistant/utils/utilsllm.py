@@ -13,6 +13,7 @@ from openai import AzureOpenAI
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_community.embeddings.bedrock import BedrockEmbeddings
+from langchain_community.chat_models import BedrockChat
 from langchain_aws import BedrockLLM
 import boto3
 
@@ -76,7 +77,7 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         llm = BedrockLLM(
             client=bedrock,
             model_id=model_name,
-            # model_kwargs=model_kwargs,
+            model_kwargs=model_kwargs,
             streaming=streaming,
             #callbacks=[StreamingStdOutCallbackHandler()],
         )
@@ -99,7 +100,7 @@ def load_client():
     elif model == "MISTRAL":
         client = MistralClient(api_key=mistral_api_key)
     elif model == "BEDROCK":
-        bedrock = BedrockLLM()
+        #bedrock = BedrockLLM()
         client = bedrock
     else:
         raise NotImplementedError(f"{model} chat client not done")

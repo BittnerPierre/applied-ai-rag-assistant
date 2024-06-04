@@ -150,8 +150,8 @@ def main():
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
 
-    model_name_bedrock = st.sidebar.radio("Bedrock Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
-                                            captions=["Claude v2.1", "Claude v2"],
+    model_name_bedrock = st.sidebar.radio("Bedrock Model", ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2:1", "anthropic.claude-v2"],
+                                            captions=["Claude Sonnet","Claude v2.1", "Claude v2"],
                                             index=0, disabled=agent_model != "BEDROCK")
 
     model_name = None
