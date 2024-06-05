@@ -231,35 +231,35 @@ conversational_rag_chain = RunnableWithMessageHistory(
 )
 
 
-llm_stream = load_model(streaming=True)
-
-
-general_system_template = r""" 
-Given a specific context, please give a short answer to the question,
- covering the required advices in general
- 
-Context:
-----
-{context}
-----
-Please respond while maintaining the same writing style as used in this excerpt.
-Maintain the same language as the follow up input message.
-"""
-
-# Was in the previous prompt
-#  and then provide the names all of relevant (even if it relates a bit) products.
-
-general_user_template = "Question:```{question}```"
-messages = [
-            SystemMessagePromptTemplate.from_template(general_system_template),
-            HumanMessagePromptTemplate.from_template(general_user_template)
-]
-qa_prompt = ChatPromptTemplate.from_messages( messages )
-
-qa_chain = ConversationalRetrievalChain.from_llm(
-    llm_stream, retriever=retriever, memory=memory, verbose=True,
-    combine_docs_chain_kwargs={'prompt': qa_prompt}
-)
+# llm_stream = load_model(streaming=True)
+#
+#
+# general_system_template = r"""
+# Given a specific context, please give a short answer to the question,
+#  covering the required advices in general
+#
+# Context:
+# ----
+# {context}
+# ----
+# Please respond while maintaining the same writing style as used in this excerpt.
+# Maintain the same language as the follow up input message.
+# """
+#
+# # Was in the previous prompt
+# #  and then provide the names all of relevant (even if it relates a bit) products.
+#
+# general_user_template = "Question:```{question}```"
+# messages = [
+#             SystemMessagePromptTemplate.from_template(general_system_template),
+#             HumanMessagePromptTemplate.from_template(general_user_template)
+# ]
+# qa_prompt = ChatPromptTemplate.from_messages(messages)
+#
+# qa_chain = ConversationalRetrievalChain.from_llm(
+#     llm_stream, retriever=retriever, memory=memory, verbose=True,
+#     combine_docs_chain_kwargs={'prompt': qa_prompt}
+# )
 
 suggested_questions = [
     "Comment sécuriser les données sensibles ?",
@@ -327,7 +327,7 @@ def main():
 
     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
         msgs.clear()
-        msgs.add_ai_message("Comment puis-je vous aider?")
+        #msgs.add_ai_message("Comment puis-je vous aider?")
 
 
     # Display suggested questions in a 2x2 table

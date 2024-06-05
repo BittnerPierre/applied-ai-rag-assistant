@@ -1,5 +1,5 @@
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from typing import Union
+from typing import Union, Optional
 from langchain_community.vectorstores import FAISS
 
 from langchain.text_splitter import TokenTextSplitter
@@ -59,8 +59,6 @@ def process_txt_folder(txt_input_folder_name, txt_folder_name):
         if filename.endswith(".txt"):
             # Full path to the file
             filepath = os.path.join(txt_input_folder_name, filename)
-
-            print("Processing TXT:", filename)
 
             # Write the extracted text to a .txt file
             txt_filename = filename
@@ -219,7 +217,7 @@ def clean_text(s):
     return s
 
 
-def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = None):
+def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = None) -> Optional[list[Document]]:
     if pdfs is not None:
         docs = []
         if metadata is None:

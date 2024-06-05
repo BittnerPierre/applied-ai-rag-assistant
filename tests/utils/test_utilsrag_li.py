@@ -92,12 +92,9 @@ def temp_dir(request):
 
 @pytest.fixture
 def llm_prepare():
-    # llm = OpenAI(model="gpt-3.5-turbo", temperature=0.1)
-    # embed_model = OpenAIEmbedding()
     llm = MistralAI()
     embed_model = MistralAIEmbedding()
 
-    # llm = MistralAI()
     Settings.llm = llm
     Settings.embed_model = embed_model
 

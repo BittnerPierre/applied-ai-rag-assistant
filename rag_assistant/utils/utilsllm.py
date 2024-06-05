@@ -4,16 +4,13 @@ from langchain_openai import ChatOpenAI, AzureChatOpenAI
 import os
 from dotenv import load_dotenv, find_dotenv
 import openai
-from mistralai.client import MistralClient
 
 from .config_loader import load_config
 
 from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
-from openai import AzureOpenAI
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain_community.embeddings.bedrock import BedrockEmbeddings
-from langchain_aws import BedrockLLM
+from langchain_aws.embeddings.bedrock import BedrockEmbeddings
+from langchain_aws import ChatBedrock
 import boto3
 
 config = load_config()
@@ -27,11 +24,13 @@ mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 # read local .env file
 _ = load_dotenv(find_dotenv())
 
-aws_region_name = config["BEDROCK"]["AWS_REGION_NAME"]
+aws_profile_name = os.getenv("profile_name")
+bedrock_region_name = config["BEDROCK"]["AWS_REGION_NAME"]
+bedrock_embeddings_model = config["BEDROCK"]["EMBEDDINGS_MODEL"]
 bedrock_endpoint_url = config["BEDROCK"]["BEDROCK_ENDPOINT_URL"]
 
 # instantiating the Bedrock client, and passing in the CLI profile
-bedrock = boto3.client('bedrock-runtime', aws_region_name,
+bedrock = boto3.client('bedrock-runtime', bedrock_region_name,
                        endpoint_url=bedrock_endpoint_url)
 
 model_kwargs = {
@@ -64,7 +63,7 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
     elif provider == "OPENAI":
         if model_name is None:
             model_name = config['OPENAI']['OPENAI_MODEL_NAME']
-        llm = ChatOpenAI(model_name=model_name, temperature=temperature, streaming = streaming)
+        llm = ChatOpenAI(model_name=model_name, temperature=temperature, streaming=streaming)
     elif provider == "MISTRAL":
         if model_name is None:
             model_name = config['MISTRAL']['CHAT_MODEL']
@@ -73,7 +72,8 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         if model_name is None:
             model_name = config['BEDROCK']['CHAT_MODEL']
 
-        llm = BedrockLLM(
+        # ChatBedrock --> must be adapted for system prompt get error "first message must use the "user" role"
+        llm = ChatBedrock(
             client=bedrock,
             model_id=model_name,
             # model_kwargs=model_kwargs,
@@ -85,26 +85,6 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
         raise NotImplementedError(f"Model {provider} unknown.")
 
     return llm
-
-
-def load_client():
-    model = config['MODEL_PROVIDER']['MODEL_PROVIDER']
-    if model == "AZURE":
-        client = AzureOpenAI(
-            api_version=config['AZURE']['AZURE_OPENAI_API_VERSION'],
-            azure_endpoint=config['AZURE']['AZURE_OPENAI_ENDPOINT'],
-            azure_deployment=config['AZURE']['AZURE_OPENAI_DEPLOYMENT'],
-            api_key=os.environ["AZURE_OPENAI_API_KEY"]
-        )
-    elif model == "MISTRAL":
-        client = MistralClient(api_key=mistral_api_key)
-    elif model == "BEDROCK":
-        bedrock = BedrockLLM()
-        client = bedrock
-    else:
-        raise NotImplementedError(f"{model} chat client not done")
-
-    return client
 
 
 def load_embeddings(model_name: str = None) -> Embeddings:
@@ -131,7 +111,9 @@ def load_embeddings(model_name: str = None) -> Embeddings:
     elif model == "MISTRAL":
         embeddings = MistralAIEmbeddings()
     elif model == "BEDROCK":
-        embeddings = BedrockEmbeddings(region_name=aws_region_name)
+        embeddings = BedrockEmbeddings(
+            region_name=bedrock_region_name,
+            model_id=bedrock_embeddings_model)
     else:
         embeddings = OpenAIEmbeddings()
 
