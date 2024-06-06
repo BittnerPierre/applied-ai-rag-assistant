@@ -112,14 +112,6 @@ def eval_questions_prepare():
     return eval_questions
 
 
-@pytest.fixture(scope="module")
-def trulens_prepare():
-    tru = Tru()
-    # tru.reset_database()
-    return tru
-
-
-
 def test_lc_agent_stuff_4_similarity(llm_prepare, embeddings_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
 
     db = Chroma.from_documents(

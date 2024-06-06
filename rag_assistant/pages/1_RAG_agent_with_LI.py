@@ -128,7 +128,7 @@ def configure_agent(all_docs: list[Document], model_name, advanced_rag):
     lc_tools = [
         Tool(
             name=f"Knowledge Agent (LI)",
-            func=agent_li.chat,
+            func=agent_li.query,
             description=f"""Useful when you need to answer questions on {topics}. "
                         "DO NOT USE MULTI-ARGUMENTS INPUT.""",
             handle_tool_error=_handle_error,

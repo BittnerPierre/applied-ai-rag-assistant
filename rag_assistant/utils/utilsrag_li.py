@@ -5,6 +5,7 @@ import chromadb
 from langchain_core.documents import Document
 # from langchain_core.language_models import LLM
 from llama_index.core import Settings, VectorStoreIndex, load_index_from_storage, StorageContext
+from llama_index.core.agent import FunctionCallingAgentWorker, AgentRunner
 from llama_index.core.agent.function_calling.base import FunctionCallingAgent
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.llms import LLM
@@ -344,15 +345,18 @@ def create_direct_query_agent(llm, documents: Sequence[Document],
 
 def create_li_agent(name: str, description: str, query_engine: BaseQueryEngine, llm: Optional[LLM] = None):
 
-    query_engine_tool = QueryEngineTool(
+    query_engine_tool = QueryEngineTool.from_defaults(
+        name=f"{name}",
         query_engine=query_engine,
-        metadata=ToolMetadata(
-            name=name,
-            description=description,
-        ),
+        description=description
     )
-    ## TODO NEW GENERIC VERSION TO CALL TOOL WITH LLAMAINDEX
-    # agent_li = OpenAIAgent.from_tools(tools=[query_engine_tool], verbose=True)
-    # MistralAIAgent.from_tools()
-    agent_li = FunctionCallingAgent.from_llm(tools=[query_engine_tool], llm=llm, verbose=True)
+
+    agent_worker = FunctionCallingAgentWorker.from_tools(
+        [query_engine_tool],
+        llm=llm,
+        verbose=True
+    )
+    agent_li = AgentRunner(agent_worker)
+    ## NEW GENERIC VERSION TO CALL TOOL WITH LLAMAINDEX
+    #agent_li = FunctionCallingAgent.from_llm(tools=[query_engine_tool], llm=llm, verbose=True)
     return agent_li

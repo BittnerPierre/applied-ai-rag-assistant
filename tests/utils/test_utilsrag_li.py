@@ -15,8 +15,15 @@ import shutil
 
 import numpy as np
 
-from trulens_eval.feedback import GroundTruthAgreement
 import nest_asyncio
+
+from trulens_eval import (
+    Feedback,
+    TruLlama,
+    OpenAI,
+    Tru, Select
+)
+from trulens_eval.app import App
 
 load_dotenv(find_dotenv())
 
@@ -25,6 +32,7 @@ openai_api_key = os.getenv('OPENAI_API_KEY')
 
 nest_asyncio.apply()
 
+provider = OpenAI()
 
 def get_openai_api_key():
     _ = load_dotenv(find_dotenv())
@@ -38,37 +46,33 @@ def get_hf_api_key():
     return os.getenv("HUGGINGFACE_API_KEY")
 
 
-from trulens_eval import (
-    Feedback,
-    TruLlama,
-    OpenAI,
-    Tru, Select
-)
+def get_trulens_feedbacks(query_engine):
 
-openai = OpenAI()
+    context = App.select_context(query_engine)
 
-qa_relevance = (
-    Feedback(openai.relevance_with_cot_reasons, name="Answer Relevance")
-    .on_input_output()
-)
+    qa_relevance = (
+        Feedback(provider.relevance_with_cot_reasons, name="Answer Relevance")
+        .on_input_output()
+    )
 
-qs_relevance = (
-    Feedback(openai.relevance_with_cot_reasons, name="Context Relevance")
-    .on_input()
-    .on(TruLlama.select_source_nodes().node.text)
-    .aggregate(np.mean)
-)
+    qs_relevance = (
+        Feedback(provider.context_relevance_with_cot_reasons, name="Context Relevance")
+        .on_input()
+        .on(context)
+        .aggregate(np.mean)
+    )
 
-groundedness = (
-    Feedback(openai.groundedness_measure_with_cot_reasons, name = "Groundedness")
-    .on(Select.RecordCalls.retrieve.rets.collect())
-    .on_output()
-)
+    groundedness = (
+        Feedback(provider.groundedness_measure_with_cot_reasons, name = "Groundedness")
+        .on(context.collect())
+        .on_output()
+    )
+
+    feedbacks = [qa_relevance, qs_relevance, groundedness]
+    return feedbacks
 
 
-feedbacks = [qa_relevance, qs_relevance, groundedness]
-
-def get_prebuilt_trulens_recorder(query_engine, app_id):
+def get_prebuilt_trulens_recorder(query_engine, app_id, feedbacks):
     tru_recorder = TruLlama(
         query_engine,
         app_id=app_id,
@@ -90,15 +94,20 @@ def temp_dir(request):
     shutil.rmtree(dir_name)
 
 
-@pytest.fixture
 def llm_prepare():
-    llm = MistralAI()
-    embed_model = MistralAIEmbedding()
+    llm = MistralAI(model="mistral-large-latest")
 
     Settings.llm = llm
-    Settings.embed_model = embed_model
 
     return llm
+
+
+def embeddings_prepare():
+    embed_model = MistralAIEmbedding()
+
+    Settings.embed_model = embed_model
+
+    return embed_model
 
 
 @pytest.fixture
@@ -121,103 +130,107 @@ def eval_questions_prepare():
     return eval_questions
 
 
-@pytest.fixture(scope="module")
-def trulens_prepare():
-    tru = Tru()
-    # tru.reset_database()
-    return tru
+def test_automerging_agent(temp_dir,
+                           docs_prepare, eval_questions_prepare, trulens_prepare):
 
-
-def test_automerging_engine(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
+    llm = llm_prepare()
 
     query_engine = create_automerging_engine(docs_prepare)
 
+    feedbacks = get_trulens_feedbacks(query_engine)
+
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
-                                                 app_id="Automerging Query Engine")
+                                                 app_id="Automerging Query Engine",
+                                                 feedbacks=feedbacks)
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
             response = query_engine.query(question)
             assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
-
-def test_automerging_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
-
-    query_engine = create_automerging_engine(docs_prepare)
-
     agent = create_li_agent(name="test_automerging_agent", description="Test Automerging Agent",
-                            query_engine=query_engine)
+                            query_engine=query_engine, llm=llm)
 
-    response = agent.chat("How do I get started on a personal project in AI?")
+    response = agent.query("How do I get started on a personal project in AI?")
     print(f"response: {str(response)}")
     assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
 
-def test_sentence_window_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
+def test_sentence_window_agent(temp_dir, docs_prepare, eval_questions_prepare, trulens_prepare):
+
+    llm = llm_prepare()
 
     query_engine = create_sentence_window_engine(
         docs_prepare,
     )
 
+    feedbacks = get_trulens_feedbacks(query_engine)
+
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
-                                                 app_id="Sentence Window Query Engine")
+                                                 app_id="Sentence Window Query Engine",
+                                                 feedbacks=feedbacks)
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
             response = query_engine.query(question)
 
-    print(trulens_prepare.get_leaderboard(app_ids=[]))
-
     agent = create_li_agent(name="test_sentence_window_agent", description="Test Sentence Window Agent",
-                            query_engine=query_engine)
+                            query_engine=query_engine, llm=llm)
 
-    response = agent.chat("How do I get started on a personal project in AI?")
-    print(f"response: {str(response)}")
+    response = agent.query("How do I get started on a personal project in AI?")
     assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
 
-def test_llamaindex_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
+def test_llamaindex_agent(temp_dir, docs_prepare, eval_questions_prepare, trulens_prepare):
+
+    llm = llm_prepare()
 
     query_engine = create_direct_query_engine(
         docs_prepare,
     )
 
+    feedbacks = get_trulens_feedbacks(query_engine)
+
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
-                                                 app_id="Direct Query Engine")
+                                                 app_id="Direct Query Engine",
+                                                 feedbacks=feedbacks)
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
             response = query_engine.query(question)
 
-    print(trulens_prepare.get_leaderboard(app_ids=[]))
+    agent = create_li_agent(name="test_direct_query_agent", description="Test Direct Query Agent",
+                            query_engine=query_engine,
+                            llm=llm)
 
-    agent = create_li_agent(name="test_direct_query_agent", description="Test Direct Query Agent", query_engine = query_engine)
-
-    response = agent.chat("How do I get started on a personal project in AI?")
-    print(f"response: {str(response)}")
+    response = agent.query("How do I get started on a personal project in AI?")
     assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
 
-def test_subquery_agent(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare, trulens_prepare):
+def test_subquery_agent(temp_dir, docs_prepare, eval_questions_prepare, trulens_prepare):
+
+    llm = llm_prepare()
+
     topics = ["AI", "Other"]
     query_engine = create_subquery_engine(
         topics,
         docs_prepare,
     )
 
+    feedbacks = get_trulens_feedbacks(query_engine)
+
     tru_recorder = get_prebuilt_trulens_recorder(query_engine,
-                                                 app_id="Sub Query Engine")
+                                                 app_id="Sub Query Engine",
+                                                 feedbacks=feedbacks)
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
             response = query_engine.query(question)
 
-    print(trulens_prepare.get_leaderboard(app_ids=[]))
-
     agent = create_li_agent(name="test_subquery_agent", description="Test Subquery Agent",
-                            query_engine=query_engine)
+                            query_engine=query_engine,
+                            llm=llm)
 
-    response = agent.chat("How do I get started on a personal project in AI?")
-    print(f"response: {str(response)}")
+    response = agent.query("How do I get started on a personal project in AI?")
     assert response is not None, "L'interprétation n'a pas retourné de résultat."
 
