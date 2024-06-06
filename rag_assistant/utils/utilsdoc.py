@@ -38,7 +38,7 @@ def extract_unique_name(collection_name : str, key : str):
 
 def split_documents(documents: list[Document]):
     # Initialize text splitter
-    text_splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=24)
+    text_splitter = TokenTextSplitter(chunk_size=1024, chunk_overlap=24)
     chunks = text_splitter.split_documents(documents)
 
     return chunks
@@ -226,12 +226,12 @@ def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = Non
             if pdf.type == "application/pdf":
                 reader = PdfReader(pdf)
                 for i, page in enumerate(reader.pages, start=1):
-                    page_metadata = {'page': i, 'filename': pdf.name}
+                    page_metadata = {'page': i, 'filename': pdf.name, "type": "Text"}
                     file_content = page.extract_text()
                     page_metadata.update(metadata)
                     docs.append(Document(page_content=clean_text(file_content), metadata=page_metadata))
             elif pdf.type == "text/plain":
-                page_metadata = {'filename': pdf.name}
+                page_metadata = {'filename': pdf.name, "type": "Text"}
                 file_content = pdf.read().decode()  # read file content and decode it
                 docs.append(Document(page_content=clean_text(file_content), metadata=page_metadata))
         return docs
