@@ -2,7 +2,11 @@ import pytest
 import os
 from dotenv import load_dotenv, find_dotenv
 
-from llama_index.core import SimpleDirectoryReader, Settings
+from llama_index.core import SimpleDirectoryReader, Settings, SummaryIndex, VectorStoreIndex
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.query_engine import RouterQueryEngine
+from llama_index.core.selectors import LLMSingleSelector
+from llama_index.core.tools import QueryEngineTool
 from llama_index.embeddings.bedrock import BedrockEmbedding
 from llama_index.llms.bedrock import Bedrock
 
@@ -41,6 +45,7 @@ bedrock_endpoint_url = "https://bedrock-runtime.eu-central-1.amazonaws.com"
 embedded_model_id = "amazon.titan-embed-text-v1"
 provider = OpenAI()
 
+
 def get_openai_api_key():
     _ = load_dotenv(find_dotenv())
 
@@ -51,41 +56,6 @@ def get_hf_api_key():
     _ = load_dotenv(find_dotenv())
 
     return os.getenv("HUGGINGFACE_API_KEY")
-
-
-@pytest.fixture()
-def query_engine(llm_prepare, docs_prepare, embeddings_prepare):
-    query_engine = create_sentence_window_engine(
-        docs_prepare,
-    )
-    return query_engine
-
-
-@pytest.fixture()
-def prepare_feedbacks(query_engine):
-
-    context = App.select_context(query_engine)
-
-    qa_relevance = (
-        Feedback(provider.relevance_with_cot_reasons, name="Answer Relevance")
-        .on_input_output()
-    )
-
-    qs_relevance = (
-        Feedback(provider.context_relevance_with_cot_reasons, name="Context Relevance")
-        .on_input()
-        .on(context)
-        .aggregate(np.mean)
-    )
-
-    groundedness = (
-        Feedback(provider.groundedness_measure_with_cot_reasons, name = "Groundedness")
-        .on(context.collect())
-        .on_output()
-    )
-
-    feedbacks = [qa_relevance, qs_relevance, groundedness]
-    return feedbacks
 
 
 def get_prebuilt_trulens_recorder(query_engine, app_id, feedbacks):
@@ -110,9 +80,20 @@ def temp_dir(request):
     pass
 
 
-# instantiating the Bedrock client, and passing in the CLI profile
+@pytest.fixture
+def docs_prepare():
+    documents = SimpleDirectoryReader(
+        input_files=["tests/rag/eval_document.pdf",
+                     ]
+    ).load_data()
+    return documents
+
+
 @pytest.fixture(scope="module")
 def prepare_bedrock():
+    """
+    instantiating the Bedrock client, and passing in the CLI profile
+    """
     boto3.setup_default_session(profile_name=aws_profile_name)
     bedrock = boto3.client('bedrock-runtime',
                            region_name=aws_region_name,
@@ -142,13 +123,70 @@ def embeddings_prepare(prepare_bedrock):
     return embed_model
 
 
-@pytest.fixture
-def docs_prepare():
-    documents = SimpleDirectoryReader(
-        input_files=["tests/rag/eval_document.pdf",
-                     ]
-    ).load_data()
-    return documents
+@pytest.fixture()
+def prepare_query_engine(docs_prepare, llm_prepare, embeddings_prepare):
+    splitter = SentenceSplitter(chunk_size=1024)
+    nodes = splitter.get_nodes_from_documents(docs_prepare)
+    summary_index = SummaryIndex(nodes)
+    vector_index = VectorStoreIndex(nodes, embed_model=embeddings_prepare)
+    summary_query_engine = summary_index.as_query_engine(
+        response_mode="tree_summarize",
+        use_async=True,
+        llm=llm_prepare
+    )
+    vector_query_engine = vector_index.as_query_engine(llm=llm_prepare)
+    summary_tool = QueryEngineTool.from_defaults(
+        query_engine=summary_query_engine,
+        description=(
+            "Useful for summarization questions."
+        ),
+    )
+
+    vector_tool = QueryEngineTool.from_defaults(
+        query_engine=vector_query_engine,
+        description=(
+            "Useful for retrieving specific context."
+        ),
+    )
+    query_engine = RouterQueryEngine(
+        selector=LLMSingleSelector.from_defaults(),
+        query_engine_tools=[
+            summary_tool,
+            vector_tool,
+        ],
+        verbose=True
+    )
+    # query_engine = create_sentence_window_engine(
+    #     docs_prepare,
+    # )
+    return query_engine
+
+
+@pytest.fixture()
+def prepare_feedbacks(prepare_query_engine):
+
+    context = App.select_context(prepare_query_engine)
+
+    qa_relevance = (
+        Feedback(provider.relevance_with_cot_reasons, name="Answer Relevance")
+        .on_input_output()
+    )
+
+    qs_relevance = (
+        Feedback(provider.context_relevance_with_cot_reasons, name="Context Relevance")
+        .on_input()
+        .on(context)
+        .aggregate(np.mean)
+    )
+
+    groundedness = (
+        Feedback(provider.groundedness_measure_with_cot_reasons, name = "Groundedness")
+        .on(context.collect())
+        .on_output()
+    )
+
+    feedbacks = [qa_relevance, qs_relevance, groundedness]
+    return feedbacks
 
 
 @pytest.fixture
@@ -163,15 +201,16 @@ def eval_questions_prepare():
     return eval_questions
 
 
-def test_sentence_window(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare,
-                         trulens_prepare, prepare_feedbacks, query_engine):
+def test_query_engine(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare,
+                      prepare_query_engine, trulens_prepare, prepare_feedbacks):
 
-    tru_recorder = get_prebuilt_trulens_recorder(query_engine,
-                                                 app_id=f"Sentence Window Query Engine ({test_name})",
+    tru_recorder = get_prebuilt_trulens_recorder(prepare_query_engine,
+                                                 app_id=f"Router Engine ({test_name})",
                                                  feedbacks=prepare_feedbacks)
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
-            response = query_engine.query(question)
+            print(f"question: {str(question)}")
+            response = prepare_query_engine.query(question)
             print(f"response: {str(response)}")
             assert response is not None, "L'interprétation n'a pas retourné de résultat."

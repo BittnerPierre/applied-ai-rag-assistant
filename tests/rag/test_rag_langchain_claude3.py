@@ -170,6 +170,7 @@ def test_qa_chain(qa_chain_prepare, eval_questions_prepare, trulens_prepare, pre
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
+            print(f"question: {str(question)}")
             response = qa_chain_prepare.invoke(question)
             assert response is not None, "L'interprétation n'a pas retourné de résultat."
             print(f"response: {str(response)}")
