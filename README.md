@@ -7,6 +7,7 @@ Apps feature LangChain 🤝 Streamlit integrations such as the
 [Callback integration](https://python.langchain.com/docs/modules/callbacks/integrations/streamlit) and
 [StreamlitChatMessageHistory](https://python.langchain.com/docs/integrations/memory/streamlit_chat_message_history).
 
+Now we have added Mistral La Plateforme, Bedrock, llamaindex and langchain agent for advanced RAG, model vision on RAG with anthropic claude.
 
 ## Setup
 
@@ -21,7 +22,87 @@ $ poetry shell
 $ pre-commit install
 ```
 
+### Note on package dependencies
+For now, we are not forcing package's version in poetry and try to upgrade as fast as we can. :)
+As we are using a lot of new and young "GENAI" component that have not finalized their interface,
+application and tests tends to break a lot and often especially they are not testing evolution with each other.
+
+Main packages are:
+- Langchain (LLM Orchestration and agent)
+- LlamaIndex (RAG)
+- Streamlit (UX)
+- TruLens (Testing)
+- Chroma (Vector Store)
+- OpenAI (LLM)
+- MistralAI (LLM)
+- boto3 (for bedrock and AWS integration)
+
 ## Running
+
+### Environment variables
+The project expects some environment variables to be setup in order to run.
+Some are mandatory for running and some are only needed if you want to run on a specific platform.
+
+The project currently supports the following platforms: OPENAI, AZURE, MISTRAL, BEDROCK (AWS).
+
+We recommend to add the variables in a .env file within the directory path outside the project directory to avoid any accidental commit.
+Your home directory is fine.
+
+Here are the variables:
+
+```shell
+OPENAI_API_KEY=<YOUR_OPENAI_API_KEY>
+MISTRAL_API_KEY=<YOUR_MISTRAL_API_KEY>
+AZURE_OPENAI_API_KEY=<YOUR_AZURE_OPENAI_API_KEY>
+HF_TOKEN=<YOUR_HUGGING_FACE_TOKEN>
+LANGCHAIN_TRACING_V2=<true or false>
+LANGCHAIN_API_KEY=<YOUR_LANGCHAIN_API_KEY>
+```
+
+### MISTRAL PLATFORM
+If you want to use MISTRAL PLATFORM, you need a MISTRAL_API_KEY and a HF_TOKEN.
+HF_TOKEN is required to download the embeddings from hugging face.
+It is done automatically but you need to have the HF_TOKEN and to have granted access on the model page on hugging face.
+https://huggingface.co/mistralai/Mixtral-8x7B-v0.1
+
+
+### LANGSMITH and LLM OBSERVABILITY
+We are using LANGSMITH for LLM Observability. 
+Langsmith requires LANGCHAIN_TRACING_V2 and a LANGCHAIN_API_KEY.
+
+You can stop tracing with 'LANGCHAIN_TRACING_V2=false'.
+Oddly 'LANGCHAIN_API_KEY' is still required even if you set 'LANGCHAIN_TRACING_V2' to false. 
+But you can put anything in it, the variable should only exist.
+
+LANGSMITH is free for personal use with a quota limit of 5k traces per month. 
+It is very useful so I recommend it to you.
+
+https://smith.langchain.com/
+
+### AWS BEDROCK
+If you want to use Bedrock (AWS), you can define your credential in $HOME/.aws/credentials directory
+We use eu-west-3 and eu-central-1 for  claude anthropic, mistral large and titan embeddings within bedrock.
+Adapt it to your own needs. Beware that models are not consistently deployed within AWS region. 
+
+
+### MODEL VISION
+We are starting to add model vision support in our assistant.
+For now, we are only supporting CLAUDE 3 vision with BEDROCK AWS.
+
+
+## Config
+Most parameters like model name, region, etc. can be modified in conf/config.ini for all model providers.
+
+
+## Testing
+We use pytest and Trulens to evaluate the assistant (RAG Triad). 
+
+For RAG testing, we are using OpenAI as provider for trulens feedback function so you need at least openai api key to make it work. 
+But you can adapt it for your own purpose.
+
+Tests in tests/utils/ directory use Mistral Large through 'La Platforme' so you'll MISTRAL_API_KEY.
+Tests in tests/rag/ use bedrock (AWS) and openai GPT. So you'll need OPENAI_API_KEY and AWS credentials.
+
 
 ```shell
 # Run mrkl_demo.py or another app the same way
