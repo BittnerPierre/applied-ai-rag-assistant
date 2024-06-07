@@ -8,6 +8,7 @@ from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import Tool, ToolException
+from langsmith import traceable
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from utils.config_loader import load_config
@@ -132,6 +133,19 @@ def configure_agent(all_docs: list[Document], model_name, chain_type, search_typ
     return agent_executor
 
 
+@traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Agent"])
+def call_chain(chain_with_history, prompt):
+    config = {"configurable": {"session_id": "any"}}
+    response = chain_with_history.invoke(
+        input={
+            "input": prompt
+        },
+        config=config
+    )
+    answer = f"🦜: {response['output']}"
+    st.write(answer)
+
+
 def main():
 
     st.title("Question Answering Assistant (RAG)")
@@ -150,9 +164,11 @@ def main():
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
 
-    model_name_bedrock = st.sidebar.radio("Bedrock Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
-                                            captions=["Claude v2.1", "Claude v2"],
-                                            index=0, disabled=agent_model != "BEDROCK")
+    model_name_bedrock = st.sidebar.radio("Bedrock Model", ["mistral.mistral-large-2402-v1:0",
+                                                            "anthropic.claude-3-sonnet-20240229-v1:0"],
+                                          captions=["Mistral Large",
+                                                    "Claude 3 Sonnet"],
+                                          index=0, disabled=agent_model != "BEDROCK")
 
     model_name = None
     if agent_model == "MISTRAL":
@@ -218,17 +234,9 @@ def main():
             # Display assistant response in chat message container
             with st.chat_message("assistant"):
                 # Display assistant response in chat message container
-                with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
-                                        tags=["LangChain", "Agent"]):
-                    config = {"configurable": {"session_id": "any"}}
-                    response = chain_with_history.invoke(
-                        input={
-                            "input": prompt
-                        },
-                        config=config
-                    )
-                    answer = f"🦜: {response['output']}"
-                    st.write(answer)
+                # with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
+                #                         tags=["LangChain", "Agent"]):
+                call_chain(chain_with_history, prompt)
 
         # Draw the messages at the end, so newly generated ones show up immediately
         with view_messages:

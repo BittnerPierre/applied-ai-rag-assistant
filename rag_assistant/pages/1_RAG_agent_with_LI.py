@@ -10,6 +10,7 @@ from langchain_community.chat_message_histories.streamlit import StreamlitChatMe
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tools import ToolException, Tool
+from langsmith import traceable
 from llama_index.embeddings.langchain import LangchainEmbedding
 from llama_index.llms.bedrock import Bedrock
 from llama_index.embeddings.bedrock import BedrockEmbedding
@@ -47,6 +48,7 @@ config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
 LLM_MODEL = config['MODEL_PROVIDER']['MODEL_PROVIDER']
+aws_region_name = config['BEDROCK']['AWS_REGION_NAME']
 
 topics = ["Cloud", "Security", "GenAI", "Application", "Architecture", "AWS", "Other"]
 
@@ -76,6 +78,15 @@ def _load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile]) -> list[Docum
     return all_docs
 
 
+@traceable(run_type="chain", project_name="RAG Assistant", tags=["LLamaIndex", "RAG", "Agent"])
+def call_chain(chain_with_history, prompt):
+    config = {"configurable": {"session_id": "any"}}
+    response = chain_with_history.invoke(input={"input": prompt}, config=config)
+
+    answer = f"🦙: {response['output']}"
+    st.write(answer)
+
+
 def configure_agent(all_docs: list[Document], model_name, advanced_rag):
     # all_docs = load_doc()
 
@@ -83,17 +94,20 @@ def configure_agent(all_docs: list[Document], model_name, advanced_rag):
     lc_embeddings = load_embeddings(model_name)
     embeddings_rag = LangchainEmbedding(lc_embeddings)
     llm_rag = None
-    if model_name.startswith("gpt"):
+
+    provider = utils.utilsllm.get_model_provider(model_name)
+
+    if provider == "OPENAI":
         llm_rag = OpenAI(model=model_name, temperature=0.1)
         # embeddings_rag = OpenAIEmbedding()
-    elif model_name.startswith("mistral"):
+    elif provider == "MISTRAL":
         llm_rag = MistralAI(model=model_name, temperature=0.1)
         # embeddings_rag = MistralAIEmbedding()
-    elif model_name.startswith("anthropic"):
+    elif provider == "BEDROCK":
         llm_rag = Bedrock(model=model_name,
                           temperature=0.1,
                           # profile_name=os.getenv("profile_name"),
-                          # region_name="eu-central-1"
+                          region_name=aws_region_name
                           )
         # model="amazon.titan-embed-g1-text-02",
         # embeddings_rag = BedrockEmbedding(credentials_profile_name=os.getenv("profile_name"), region_name="eu-central-1")
@@ -178,8 +192,18 @@ def main():
 
     load_sidebar()
 
+    if LLM_MODEL == "BEDROCK":
+        st.write("RAG Agent with LlamaIndex does not work on Bedrock as LlamaIndex Agent"
+                 " requires function calling that is not yet supported with Bedrock.")
+        st.write("Please change provider to OPENAI or MISTRAL in config file.")
+        st.write("RAG Agent with Langchain is working.")
+        return
+
     model_index = model_to_index[LLM_MODEL]
-    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI", "MISTRAL", "BEDROCK"], index=model_index)
+    agent_model = st.sidebar.radio("RAG Agent LLM Provider", ["OPENAI",
+                                                              "MISTRAL",
+                                                              #"BEDROCK"
+                                                              ], index=model_index)
 
     st.sidebar.subheader("RAG Agent Model")
     model_name_gpt = st.sidebar.radio("OpenAI Model", ["gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o"],
@@ -190,17 +214,19 @@ def main():
                                           captions=["Mistral 7b", "Mixtral", "Mistral Large"],
                                           index=2, disabled=agent_model != "MISTRAL")
 
-    model_name_bedrock = st.sidebar.radio("Bedrock Model", ["anthropic.claude-v2:1", "anthropic.claude-v2"],
-                                            captions=["Claude v2.1", "Claude v2"],
-                                            index=0, disabled=agent_model != "BEDROCK")
+    # model_name_bedrock = st.sidebar.radio("Bedrock Model", ["mistral.mistral-large-2402-v1:0",
+    #                                                         "anthropic.claude-3-sonnet-20240229-v1:0"],
+    #                                         captions=["Mistral Large",
+    #                                                   "Claude 3 Sonnet"],
+    #                                         index=0, disabled=agent_model != "BEDROCK")
 
     model_name = None
     if agent_model == "MISTRAL":
         model_name = model_name_mistral
     elif agent_model == "OPENAI":
         model_name = model_name_gpt
-    elif agent_model == "BEDROCK":
-        model_name = model_name_bedrock
+    #elif agent_model == "BEDROCK":
+    #    model_name = model_name_bedrock
 
     st.sidebar.subheader("RAG Agent params")
     advanced_rag = st.sidebar.radio("Advanced RAG (Llamaindex)", ["direct_query", "subquery", "automerging",
@@ -249,13 +275,9 @@ def main():
 
             # Display assistant response in chat message container
             with st.chat_message("assistant"):
-                with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
-                                        tags=["LlamaIndex", "Agent"]):
-                    config = {"configurable": {"session_id": "any"}}
-                    response = chain_with_history.invoke(input={"input": prompt}, config=config)
-
-                    answer = f"🦙: {response['output']}"
-                    st.write(answer)
+                #with tracing_v2_enabled(project_name="Applied AI RAG Assistant",
+                #                        tags=["LlamaIndex", "Agent"]):
+                call_chain(chain_with_history, prompt)
 
         # Draw the messages at the end, so newly generated ones show up immediately
         with view_messages:

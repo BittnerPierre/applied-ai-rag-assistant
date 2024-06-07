@@ -1,3 +1,5 @@
+from typing import Optional
+
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
@@ -41,17 +43,24 @@ model_kwargs = {
 }
 
 
-def load_model(model_name: str = None, temperature: float = 0, streaming:bool = False) -> BaseChatModel:
-
+def get_model_provider(model_name:str) -> Optional[str]:
     provider = None
     if model_name is None:
         provider = config['MODEL_PROVIDER']['MODEL_PROVIDER']
     elif model_name.startswith("gpt"):
         provider = "OPENAI"
-    elif model_name.startswith("mistral"):
+    elif model_name.startswith("mistral-"):
         provider = "MISTRAL"
+    elif model_name.startswith("mistral.mi"):
+        provider = "BEDROCK"
     elif model_name.startswith("anthropic"):
         provider = "BEDROCK"
+
+    return provider
+
+def load_model(model_name: str = None, temperature: float = 0, streaming:bool = False) -> BaseChatModel:
+
+    provider = get_model_provider(model_name)
 
     if provider == "AZURE":
         llm = AzureChatOpenAI(
@@ -89,28 +98,20 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
 
 def load_embeddings(model_name: str = None) -> Embeddings:
 
-    model = None
-    if model_name is None:
-        model = config['MODEL_PROVIDER']['MODEL_PROVIDER']
-    elif model_name.startswith("gpt"):
-        model = "OPENAI"
-    elif model_name.startswith("mistral"):
-        model = "MISTRAL"
-    elif model_name.startswith("anthropic"):
-        model = "BEDROCK"
+    provider = get_model_provider(model_name)
 
-    if model == "AZURE":
+    if provider == "AZURE":
         embeddings = AzureOpenAIEmbeddings(
             azure_deployment=config['AZURE']['AZURE_OPENAI_EMBEDDING_DEPLOYMENT'],
             azure_endpoint=config['AZURE']['AZURE_OPENAI_ENDPOINT'],
             openai_api_version=config['AZURE']["AZURE_OPENAI_API_VERSION"],
             api_key=os.environ["AZURE_OPENAI_API_KEY"]
         )
-    elif model == "OPENAI":
+    elif provider == "OPENAI":
         embeddings = OpenAIEmbeddings()
-    elif model == "MISTRAL":
+    elif provider == "MISTRAL":
         embeddings = MistralAIEmbeddings()
-    elif model == "BEDROCK":
+    elif provider == "BEDROCK":
         embeddings = BedrockEmbeddings(
             region_name=bedrock_region_name,
             model_id=bedrock_embeddings_model)

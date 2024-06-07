@@ -15,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, Syst
     HumanMessagePromptTemplate
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tracers.context import tracing_v2_enabled
+from langsmith import traceable
 
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
@@ -269,6 +270,7 @@ suggested_questions = [
 ]
 
 
+@traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
     st.chat_message("user").write(user_query)
     with ((st.chat_message("assistant"))):
@@ -279,39 +281,36 @@ def handle_assistant_response(user_query):
         # RETRIEVE THE CONTAINER TO CLEAR IT LATER to not show question twice
         e = st.empty()
         stream_handler = StreamHandler(e, ctx)
-        ai_response = ""
-        with tracing_v2_enabled(project_name="Chat with Docs",
-                                tags=["LangChain", "Chain", "Chat History"]):
-            # CODE WORKING BUT ALL LC API
-            # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
-            # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
-            # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
-            # ai_response = qa_chain.invoke({"question": user_query},
-            #                               {"configurable": {"session_id": sessionid},
-            #                                   "callbacks": [
-            #                                   retrieval_handler,
-            #                                   stream_handler
-            #                                 ]
-            #                               },
-            # )["answer"]
-            # END CODE WORKING WITH ALL LC API
+        # CODE WORKING BUT ALL LC API
+        # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
+        # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
+        # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
+        # ai_response = qa_chain.invoke({"question": user_query},
+        #                               {"configurable": {"session_id": sessionid},
+        #                                   "callbacks": [
+        #                                   retrieval_handler,
+        #                                   stream_handler
+        #                                 ]
+        #                               },
+        # )["answer"]
+        # END CODE WORKING WITH ALL LC API
 
-            # NEW API OF LANGCHAIN
-            # PROMPT NEED TO BE CHANGED
-            ai_response = conversational_rag_chain.invoke(
-                    input={"input": user_query},
-                    config={
-                        "configurable": {"session_id": sessionid},
-                        "callbacks": [
-                            retrieval_handler,
-                            stream_handler
-                        ]
-                    },
-                )["answer"]
-            # emptying container to remove initial question that is render by llm
-            e.empty()
-            with e.container():
-                st.markdown(ai_response)
+        # NEW API OF LANGCHAIN
+        # PROMPT NEED TO BE CHANGED
+        ai_response = conversational_rag_chain.invoke(
+                input={"input": user_query},
+                config={
+                    "configurable": {"session_id": sessionid},
+                    "callbacks": [
+                        retrieval_handler,
+                        stream_handler
+                    ]
+                },
+            )["answer"]
+        # emptying container to remove initial question that is render by llm
+        e.empty()
+        with e.container():
+            st.markdown(ai_response)
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 
