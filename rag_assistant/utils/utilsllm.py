@@ -1,30 +1,40 @@
+import os
+import logging
+import openai
+import boto3
+
 from typing import Optional
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
+
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
-import os
+from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
+
+from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
+
+from langchain_aws.embeddings.bedrock import BedrockEmbeddings
+from langchain_aws import ChatBedrock
+
 from dotenv import load_dotenv, find_dotenv
-import openai
 
 from .config_loader import load_config
 
-from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
-from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
-from langchain_aws.embeddings.bedrock import BedrockEmbeddings
-from langchain_aws import ChatBedrock
-import boto3
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 config = load_config()
 
 # read local .env file
 _ = load_dotenv(find_dotenv())
 
-openai.api_key = os.environ['OPENAI_API_KEY']
-mistral_api_key = os.environ.get("MISTRAL_API_KEY")
+try:
+    openai.api_key = os.environ['OPENAI_API_KEY']
+except KeyError:
+    logger.info("OPENAI_API_KEY not found in environment variables. OpenAI API will not be available.")
 
-# read local .env file
-_ = load_dotenv(find_dotenv())
+mistral_api_key = os.environ.get("MISTRAL_API_KEY")
 
 aws_profile_name = os.getenv("profile_name")
 bedrock_region_name = config["BEDROCK"]["AWS_REGION_NAME"]
