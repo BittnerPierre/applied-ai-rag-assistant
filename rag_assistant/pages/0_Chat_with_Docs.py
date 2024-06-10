@@ -35,7 +35,7 @@ logger = logging.getLogger('AI_assistant_feedback')
 logger.setLevel(logging.INFO)
 
 # Check if the directory exists, if not create it
-log_dir = "./logs"
+log_dir = "logs"
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
