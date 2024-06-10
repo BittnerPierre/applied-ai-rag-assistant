@@ -20,13 +20,10 @@ config = load_config()
 # read local .env file
 _ = load_dotenv(find_dotenv())
 
-openai.api_key = os.environ['OPENAI_API_KEY']
-mistral_api_key = os.environ.get("MISTRAL_API_KEY")
+openai.api_key = os.getenv('OPENAI_API_KEY')
+mistral_api_key = os.getenv('MISTRAL_API_KEY')
+aws_profile_name = os.getenv('profile_name')
 
-# read local .env file
-_ = load_dotenv(find_dotenv())
-
-aws_profile_name = os.getenv("profile_name")
 bedrock_region_name = config["BEDROCK"]["AWS_REGION_NAME"]
 bedrock_embeddings_model = config["BEDROCK"]["EMBEDDINGS_MODEL"]
 bedrock_endpoint_url = config["BEDROCK"]["BEDROCK_ENDPOINT_URL"]
