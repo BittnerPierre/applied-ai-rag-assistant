@@ -1,19 +1,20 @@
+import boto3
+import openai
+import os
+
 from typing import Optional
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
-import os
-from dotenv import load_dotenv, find_dotenv
-import openai
-
-from .config_loader import load_config
-
 from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain_aws.embeddings.bedrock import BedrockEmbeddings
 from langchain_aws import ChatBedrock
-import boto3
+
+from dotenv import load_dotenv, find_dotenv
+
+from .config_loader import load_config
 
 config = load_config()
 
