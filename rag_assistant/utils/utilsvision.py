@@ -12,7 +12,7 @@ from pypdf import PdfReader
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from utils.config_loader import load_config
-from utils.utilsdoc import clean_text
+from utils.utilsdoc import clean_text, persist_images
 
 config = load_config()
 
@@ -138,6 +138,7 @@ def load_image(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = N
 
                         else:
                             print(f"Failed to extract text from image {image.name}.")
+                    persist_images(page.images)
         return docs
     else:
         return None
