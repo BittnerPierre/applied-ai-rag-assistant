@@ -329,3 +329,45 @@ def persist_file_locally(file, filename:str, file_type: str) -> None:
             f.write(file.data)
         else:
             f.write(file.getvalue())
+
+
+def get_file(filename: str, file_type: str=''):
+    """Get file from selected storage interface"""
+    storage_interface = config.get('DOCUMENTS_STORAGE', 'INTERFACE')
+
+    if storage_interface == 'LOCAL':
+        return get_file_locally(filename=filename, file_type=file_type)
+
+    if storage_interface == 'S3':
+        return get_file_from_s3(filename=filename, file_type=file_type)
+
+    if storage_interface == 'NONE':
+        return None
+
+    raise NotImplementedError(f"{storage_interface} not implemented yet for storage.")
+
+
+def get_file_locally(filename: str, file_type: str):
+    """Get file from local storage"""
+    documents_path = config.get('DOCUMENTS_STORAGE', 'DOCUMENTS_PATH')
+    folder_name = "images" if file_type == "image" else "docs"
+
+    file_path = os.path.join(documents_path, folder_name, filename)
+
+    if os.path.exists(file_path):
+        return open(file_path, 'rb').read()
+
+    return None
+
+
+def get_file_from_s3(filename: str, file_type: str):
+    """Get file from S3 storage"""
+    s3_bucket = config.get('DOCUMENTS_STORAGE', 'S3_BUCKET_NAME')
+
+    folder_name = "images" if file_type == "image" else "docs"
+    file_key = f"{folder_name}/{filename}"
+
+    s3_client = boto3.client('s3')
+
+    response = s3_client.get_object(Bucket=s3_bucket, Key=file_key)
+    return response['Body'].read()

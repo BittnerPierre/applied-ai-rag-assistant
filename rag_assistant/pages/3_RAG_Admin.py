@@ -2,7 +2,8 @@ import streamlit as st
 
 import json
 
-from utils.utilsdoc import get_store, empty_store, extract_unique_name
+from streamlit_pdf_viewer import pdf_viewer
+from utils.utilsdoc import get_store, empty_store, extract_unique_name, get_file
 from utils.config_loader import load_config
 
 
@@ -28,6 +29,13 @@ def main():
 
     for name in unique_filenames:
         st.markdown(f"""- {name}""")
+        show = st.toggle("Show document", False, key=f"{name}")
+        if show:
+            binary_data = get_file(name)
+            st.subheader(f"{name}")
+            if binary_data:
+                pdf_viewer(input=binary_data, width=700, height=800)
+
 
     st.subheader("Topic loaded")
     unique_topic_names = extract_unique_name(collection_name, 'topic_name')
@@ -58,9 +66,18 @@ def main():
         #    filter["type"] = filetype
         if st.form_submit_button("Search"):
             # add check for empty string as it is not supported by bedrock (or anthropic?)
+            results_doc_pages = []
             if search != "":
                 result = store.similarity_search(search, k=5, filter=filter)  # , kwargs={"score_threshold": .8}
                 st.write(result)
+                for doc in result:
+                    if (doc.metadata["filename"], doc.metadata["page"]) not in results_doc_pages:
+                        results_doc_pages.append((doc.metadata["filename"], doc.metadata["page"]))
+                for (filename, page) in results_doc_pages:    
+                    binary_data = get_file(filename)
+                    if binary_data:
+                        key = f"results.{filename}.{page}"
+                        pdf_viewer(input=binary_data, width=700, pages_to_render=[page], key=key)
 
     st.subheader("Data Management")
 
