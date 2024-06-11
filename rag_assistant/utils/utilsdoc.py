@@ -143,16 +143,26 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
         persistent_client = chromadb.PersistentClient(path=persist_directory)
         collection = persistent_client.get_or_create_collection(name=collection_name)
 
-        # Create a list of unique ids for each document based on the content
-        ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, doc.page_content)) for doc in documents]
-        unique_ids = list(set(ids))
-        # print(f"""Unique Ids : {unique_ids}""")
+        # # Create a list of unique ids for each document based on the content
+        # ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, doc.page_content)) for doc in documents]
+        # unique_ids = list(set(ids))
+        # # print(f"""Unique Ids : {unique_ids}""")
+        #
+        # # Ensure that only docs that correspond to unique ids are kept and that only one of the duplicate ids is kept
+        # seen_ids = set()
+        # unique_docs = [doc for doc, id in zip(documents, ids) if id not in seen_ids and (seen_ids.add(id) or True)]
 
-        # Ensure that only docs that correspond to unique ids are kept and that only one of the duplicate ids is kept
-        seen_ids = set()
-        unique_docs = [doc for doc, id in zip(documents, ids) if id not in seen_ids and (seen_ids.add(id) or True)]
+        # Create a bag (dict) for unique ids for each document based on the content
+        id_bag = {}
+        unique_docs = []
+        for doc in documents:
+            id = str(uuid.uuid5(uuid.NAMESPACE_DNS, doc.page_content))
+            if id not in id_bag:
+                id_bag[id] = True
+                unique_docs.append(doc)
 
-        # print(f"""Unique doc : {unique_docs}""")
+        # Get unique ids
+        unique_ids = list(id_bag.keys())
 
         db = Chroma.from_documents(
             documents=unique_docs,
