@@ -2,8 +2,9 @@ import streamlit as st
 
 import json
 
-from utils.constants import DocumentType, ChunkType, Metadata
+from utils.constants import DocumentType, ChunkType, Metadata, CollectionType
 from utils.utilsdoc import get_store, empty_store, extract_unique_name, get_collection_count, get_metadatas, delete_documents_by_type_and_name
+from utils.utilsfile import list_files, delete_file
 from utils.config_loader import load_config
 
 
@@ -84,6 +85,7 @@ def main():
         file_name_to_delete = st.selectbox("Select File Name", unique_filenames, index=None)
         if st.button("Delete File data"):
             delete_documents_by_type_and_name(collection_name=collection_name, type=Metadata.FILENAME.value, name=file_name_to_delete)
+            delete_file(file_name_to_delete, CollectionType.DOCUMENTS.value)
 
     with col2:
         topic_name_to_delete = st.selectbox("Select Topic", unique_topic_names, index=None)

@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import io
 
 from llama_index.core import SummaryIndex, VectorStoreIndex, StorageContext, load_index_from_storage, \
     get_response_synthesizer, DocumentSummaryIndex, SimpleDirectoryReader
@@ -8,12 +9,14 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.response_synthesizers import ResponseMode
 from llama_index.core.schema import Document as LIDocument
 
-from utils.constants import DocumentType, SupportedFileType, Metadata
+
+from utils.constants import DocumentType, SupportedFileType, Metadata, CollectionType
 from utils.config_loader import load_config
 from utils.utilsdoc import load_doc, load_store
 from utils.utilsllm import load_llamaindex_model, load_llamaindex_embeddings
 
 from utils.utilsvision import load_image
+from utils.utilsfile import put_file
 
 config = load_config()
 
@@ -58,6 +61,7 @@ def main():
             with open(file_path, 'wb') as f:
                 f.write(pdf.read())
             file_paths.append(file_path)
+            put_file(io.BytesIO(pdf.getvalue()), pdf.name, CollectionType.DOCUMENTS.value)
 
         metadata = {Metadata.DOCUMENT_TYPE.value: file_type, Metadata.TOPIC.value: topic_name}
         docs = []
