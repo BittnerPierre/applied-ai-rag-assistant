@@ -63,3 +63,8 @@ variable "langchain_tracing_v2_bool" {
   description = "Langchain tracing V2 boolean string ('true' or 'false')"
   type        = string
 }
+
+variable "opensearch_domain_name" {
+  description = "Name of the Opensearch domain"
+  type        = string
+}
