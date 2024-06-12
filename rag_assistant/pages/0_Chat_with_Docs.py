@@ -21,7 +21,7 @@ from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
 import logging
-
+import datetime
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
@@ -54,7 +54,21 @@ logger.addHandler(handler)
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
 
-sessionid = "abc123"
+#sessionid = "abc123"
+
+def get_session_id():
+    if "session_id" not in st.session_state:
+        now = datetime.datetime.now()
+        session_id = now.strftime("%Y-%m-%d_%H-%M-%S")
+        st.session_state.session_id = session_id                    
+    return st.session_state.session_id
+
+def get_chat_history(session_id):
+    if "chat_histories" not in st.session_state:
+        st.session_state.chat_histories = {}
+    if session_id not in st.session_state.chat_histories:
+        st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+    return st.session_state.chat_histories[session_id]
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -181,8 +195,8 @@ st.session_state.store = {}
 llm = load_model(streaming=True)
 
 # msgs = StreamlitChatMessageHistory()
-msgs = get_session_history(sessionid)
-memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
+# msgs = get_session_history(sessionid)
+# memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
 ### Contextualize question ###
 contextualize_q_system_prompt = """Given a chat history and the latest user question \
@@ -319,27 +333,92 @@ def suggestion_clicked(question):
     st.session_state.user_suggested_question = question
 
 
+# def main():
+#     st.title("Chat with Documents")
+
+#     msgs = get_session_history(sessionid)
+
+#     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
+#         msgs.clear()
+#         #msgs.add_ai_message("Comment puis-je vous aider?")
+
+
+#     # Display suggested questions in a 2x2 table
+#     col1, col2 = st.columns(2)
+#     for i, question in enumerate(suggested_questions, start=1):
+#         # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
+#         col = col1 if i % 2 != 0 else col2
+#         col.button(question, on_click=suggestion_clicked, args=[question])
+
+
+#     # Chat interface
+#     avatars = {"human": "user", "ai": "assistant"}
+#     msgs = get_session_history(sessionid)
+#     for i, msg in enumerate(msgs.messages):
+#         st.chat_message(avatars[msg.type]).write(msg.content)
+#         if (msg.type == "ai") and (i > 0):
+#             streamlit_feedback(feedback_type = "thumbs",
+#                                optional_text_label="Cette réponse vous convient-elle?",
+#                                key=f"feedback_{i}",
+#                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
+
+
+#     # Handle suggested questions
+#     if "user_suggested_question" in st.session_state:
+#         user_query = st.session_state.user_suggested_question
+#         st.session_state.pop("user_suggested_question")  # Clear the session state
+#         handle_assistant_response(user_query)
+
+#     #Handle user queries
+#     if user_query := st.chat_input(placeholder="Ask me anything!"):
+#         handle_assistant_response(user_query)
+
+
+# if __name__ == "__main__":
+#     main()
+
 def main():
     st.title("Chat with Documents")
 
-    msgs = get_session_history(sessionid)
+    st.sidebar.title("Chat Sessions")
+
+    session_id = get_session_id()
+    chat_sessions = list(st.session_state.get("chat_histories", {}).keys())
+
+    if st.sidebar.button("New Chat"):
+        session_id = str(datetime.datetime.now())
+        st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+
+    selected_session = session_id
+    for chat_session in chat_sessions:
+        col1, col2 = st.sidebar.columns([0.8, 0.2])
+        with col1:
+            if st.button(chat_session):
+                selected_session = chat_session
+                st.session_state.session_id = selected_session
+        with col2:
+            if st.button("🚮", key=f"delete_{chat_session}"):
+                del st.session_state.chat_histories[chat_session]
+                st.rerun()  # Refresh the page
+
+    if selected_session != session_id:
+        session_id = selected_session
+        st.session_state.session_id = session_id
+
+    msgs = get_chat_history(session_id)
 
     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
         msgs.clear()
-        #msgs.add_ai_message("Comment puis-je vous aider?")
-
 
     # Display suggested questions in a 2x2 table
     col1, col2 = st.columns(2)
     for i, question in enumerate(suggested_questions, start=1):
-        # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
         col = col1 if i % 2 != 0 else col2
         col.button(question, on_click=suggestion_clicked, args=[question])
 
-
     # Chat interface
     avatars = {"human": "user", "ai": "assistant"}
-    msgs = get_session_history(sessionid)
+    msgs = get_chat_history(session_id)
     for i, msg in enumerate(msgs.messages):
         st.chat_message(avatars[msg.type]).write(msg.content)
         if (msg.type == "ai") and (i > 0):
@@ -348,14 +427,13 @@ def main():
                                key=f"feedback_{i}",
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
-
     # Handle suggested questions
     if "user_suggested_question" in st.session_state:
         user_query = st.session_state.user_suggested_question
         st.session_state.pop("user_suggested_question")  # Clear the session state
         handle_assistant_response(user_query)
 
-    #Handle user queries
+    # Handle user queries
     if user_query := st.chat_input(placeholder="Ask me anything!"):
         handle_assistant_response(user_query)
 
