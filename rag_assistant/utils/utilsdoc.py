@@ -8,6 +8,8 @@ import shutil
 from PyPDF2 import PdfReader
 from langchain.docstore.document import Document
 from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter, CharacterTextSplitter
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 import re
 import os
@@ -17,7 +19,7 @@ import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
 
-from shared.constants import Metadata, ChunkType
+from ..shared.constants import Metadata, ChunkType
 from .utilsllm import load_embeddings
 from .config_loader import load_config
 
@@ -181,7 +183,7 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
     return db
 
 
-def get_store(embeddings: Embeddings = None, collection_name=None):
+def get_store(embeddings: Embeddings = None, collection_name=None) -> VectorStore:
 
     vectordb = config['VECTORDB']['vectordb']
 
@@ -228,6 +230,23 @@ def clean_text(s):
     return s
 
 
+def _chunk_texts(texts):
+    character_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        separators=["\n\n", "\n", ". ", " ", ""],
+        chunk_size=256,
+        chunk_overlap=32
+    )
+    character_split_texts = character_splitter.split_text(texts)
+
+    # token_splitter = SentenceTransformersTokenTextSplitter(chunk_overlap=0, tokens_per_chunk=256)
+
+    # token_split_texts = []
+    # for text in character_split_texts:
+    #     token_split_texts += token_splitter.split_text(text)
+
+    return character_split_texts
+
+
 def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = None) -> Optional[list[Document]]:
     if pdfs is not None:
         docs = []
@@ -237,15 +256,21 @@ def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = Non
             if pdf.type == "application/pdf":
                 reader = PdfReader(pdf)
                 for i, page in enumerate(reader.pages, start=1):
-                    page_metadata = {Metadata.PAGE.value: i, Metadata.FILENAME.value: pdf.name,
-                                     Metadata.CHUNK_TYPE.value: ChunkType.TEXT.value}
-                    file_content = page.extract_text()
-                    page_metadata.update(metadata)
-                    docs.append(Document(page_content=clean_text(file_content), metadata=page_metadata))
+                    page_content = page.extract_text().strip()
+                    if page_content:
+                        chunks = _chunk_texts(page_content)
+                        for chunk in chunks:
+                            page_metadata = {Metadata.PAGE.value: i, Metadata.FILENAME.value: pdf.name,
+                                             Metadata.CHUNK_TYPE.value: ChunkType.TEXT.value}
+                            page_metadata.update(metadata)
+                            docs.append(Document(page_content=clean_text(chunk), metadata=page_metadata))
             elif pdf.type == "text/plain":
-                page_metadata = {Metadata.FILENAME.value: pdf.name, Metadata.CHUNK_TYPE.value: ChunkType.TEXT.value}
-                file_content = pdf.read().decode()  # read file content and decode it
-                docs.append(Document(page_content=clean_text(file_content), metadata=page_metadata))
+                page_content = pdf.read().decode().strip()  # read file content and decode it
+                chunks = _chunk_texts(page_content)
+                for chunk in chunks:
+                    page_metadata = {Metadata.FILENAME.value: pdf.name, Metadata.CHUNK_TYPE.value: ChunkType.TEXT.value}
+                    page_metadata.update(metadata)
+                    docs.append(Document(page_content=clean_text(chunk), metadata=page_metadata))
         return docs
     else:
         return None

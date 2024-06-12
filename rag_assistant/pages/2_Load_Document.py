@@ -12,6 +12,7 @@ config = load_config()
 
 app_name = config['DEFAULT']['APP_NAME']
 collection_name = config['VECTORDB']['collection_name']
+upload_directory = config['FILE_MANAGEMENT']['UPLOAD_DIRECTORY']
 
 st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 
@@ -37,6 +38,16 @@ def main():
         disabled = False
 
     if st.button("Transmettre", disabled=disabled):
+
+        file_paths = []
+        if not os.path.exists(upload_directory):
+            os.makedirs(upload_directory)
+        for pdf in pdfs:
+            file_path = os.path.join(upload_directory, pdf.name)
+            with open(file_path, 'wb') as f:
+                f.write(pdf.read())
+            file_paths.append(file_path)
+
         metadata = {Metadata.DOCUMENT_TYPE.value: file_type, Metadata.TOPIC.value: topic_name}
         docs = []
         if not image_only:
@@ -45,7 +56,6 @@ def main():
             image_docs = load_image(pdfs, metadata, restart_image_analysis)
             docs += image_docs
         load_store(docs, collection_name=collection_name)
-
 
 if __name__ == "__main__":
     main()

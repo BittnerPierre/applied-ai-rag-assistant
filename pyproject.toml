@@ -22,6 +22,7 @@ streamlit = ">=1.26"
 docarray = "^0.40.0"
 langchain-community = ">=0.2.0" # must have "^0.0.29"
 langchain-openai = ">=0.1.1"
+streamlit_pdf_viewer = ">=0.0.12"
 # There is a incompatibility issue with chroma and llamaindex
 # was working with 0.4.3 but it is no longer supporter by llamaidnex and there is incompatibility issue
 # newer version of chromadb raised "ModuleNotFoundError: No module named 'hnswlib'" in vector/local_hnsw.py", line 26

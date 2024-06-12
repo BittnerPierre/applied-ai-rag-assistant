@@ -2,6 +2,7 @@ import os
 import threading
 
 import streamlit as st
+from streamlit_pdf_viewer import pdf_viewer
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
@@ -17,6 +18,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tracers.context import tracing_v2_enabled
 from langsmith import traceable
 
+from shared.constants import Metadata
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
@@ -53,6 +55,7 @@ logger.addHandler(handler)
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
+upload_directory = config['FILE_MANAGEMENT']['UPLOAD_DIRECTORY']
 
 sessionid = "abc123"
 
@@ -131,8 +134,9 @@ class PrintRetrievalHandler(BaseCallbackHandler):
 
     def on_retriever_end(self, documents, **kwargs):
         for idx, doc in enumerate(documents):
-            source = doc.metadata["filename"]
-            self.status.write(f"**Document {idx} from {source}**")
+            source = doc.metadata[Metadata.FILENAME.value]
+            page = doc.metadata[Metadata.PAGE.value]
+            self.status.write(f"**Chunk {idx} from {source} - page {page}**")
             self.status.markdown(doc.page_content)
         self.status.update(state="complete")
 
@@ -297,20 +301,48 @@ def handle_assistant_response(user_query):
 
         # NEW API OF LANGCHAIN
         # PROMPT NEED TO BE CHANGED
-        ai_response = conversational_rag_chain.invoke(
-                input={"input": user_query},
-                config={
-                    "configurable": {"session_id": sessionid},
-                    "callbacks": [
-                        retrieval_handler,
-                        stream_handler
-                    ]
-                },
-            )["answer"]
+        response = conversational_rag_chain.invoke(
+            input={"input": user_query},
+            config={
+                "configurable": {"session_id": sessionid},
+                "callbacks": [
+                    retrieval_handler,
+                    stream_handler
+                ]
+            },
+        )
+
+
+        ai_response = response["answer"]
         # emptying container to remove initial question that is render by llm
         e.empty()
         with e.container():
             st.markdown(ai_response)
+            context = response["context"]
+            metadata = [(doc.metadata['filename'], doc.metadata['page']) for doc in context]
+            metadata_dict = {}
+            for filename, page in metadata:
+                if filename not in metadata_dict:
+                    metadata_dict[filename] = []  # Initialize a new list for new filename
+                metadata_dict[filename].append(page)
+
+            # Create a new sorted list
+            sorted_metadata = sorted(metadata_dict.items(), key=lambda x: len(x[1]), reverse=True)
+
+            # Format the sorted list
+            formatted_metadata = []
+            for item in sorted_metadata:
+                formatted_metadata.append([item[0], item[1]])
+            if formatted_metadata:  # check if list is empty
+                first_metadata = formatted_metadata[0]
+                filename = first_metadata[0]
+                pages = first_metadata[1]
+                #show_retrievals = st.checkbox("Show PDFs")
+                with st.expander(f"Source: {filename}", expanded=True):
+
+                        pdf_viewer(f"{upload_directory}/{filename}",
+                                   height=400,
+                                   pages_to_render=pages)
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 

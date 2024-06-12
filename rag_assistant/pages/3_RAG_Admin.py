@@ -95,10 +95,11 @@ def main():
     if st.button("Delete collection"):
         empty_store(collection_name=collection_name)
 
-    with st.expander("See All Metadatas", expanded=False):
-        st.subheader("Metadatas")
-        metadatas = collection.get()['metadatas']
-        st.code(json.dumps(metadatas, indent=4, sort_keys=True), language="json")
+    if collection:
+        with st.expander("See All Metadatas", expanded=False):
+            st.subheader("Metadatas")
+            metadatas = collection.get()['metadatas']
+            st.code(json.dumps(metadatas, indent=4, sort_keys=True), language="json")
 
 
 if __name__ == "__main__":
