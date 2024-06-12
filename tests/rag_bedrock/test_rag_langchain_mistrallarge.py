@@ -9,47 +9,30 @@ from rag_assistant.utils.utilsrag_lc import agent_lc_factory
 import numpy as np
 from langchain_community.document_loaders.pdf import PyPDFLoader
 from langchain_community.vectorstores.chroma import Chroma
-from langchain_aws import BedrockLLM, ChatBedrock
+from langchain_aws import ChatBedrock
 from langchain_aws.embeddings.bedrock import BedrockEmbeddings
 import nest_asyncio
-
-import boto3
-from trulens_eval import (
-    Feedback,
-    TruLlama,
-    OpenAI,
-    Tru, Select
-)
-
 from trulens_eval.app import App
 
-load_dotenv(find_dotenv())
+import boto3
 
-# Set OpenAI API key from Streamlit secrets
-openai_api_key = os.getenv('OPENAI_API_KEY')
+from trulens_eval import (
+    Feedback
+)
+from trulens_eval.feedback.provider.bedrock import Bedrock as TruBedrock
+
+_ = load_dotenv(find_dotenv())
 
 nest_asyncio.apply()
 
 aws_profile_name = os.getenv("profile_name")
 
-test_name = "Claude_3"
+test_name = "Mistral_Large"
 aws_region_name = "eu-west-3"
-model_name = "anthropic.claude-3-sonnet-20240229-v1:0"
+model_name = "mistral.mistral-large-2402-v1:0"
 bedrock_endpoint_url = "https://bedrock-runtime.eu-west-3.amazonaws.com"
 embedded_model_id = "amazon.titan-embed-image-v1"
-provider = OpenAI()
-
-
-def get_openai_api_key():
-    _ = load_dotenv(find_dotenv())
-
-    return os.getenv("OPENAI_API_KEY")
-
-
-def get_hf_api_key():
-    _ = load_dotenv(find_dotenv())
-
-    return os.getenv("HUGGINGFACE_API_KEY")
+provider = TruBedrock()
 
 
 @pytest.fixture()
@@ -145,7 +128,7 @@ def embeddings_prepare(prepare_bedrock):
 @pytest.fixture
 def docs_prepare():
     documents = []
-    loader = PyPDFLoader("tests/rag/eval_document.pdf")
+    loader = PyPDFLoader("tests/rag_bedrock/eval_document.pdf")
     documents.extend(loader.load())
     return documents
 
@@ -153,7 +136,7 @@ def docs_prepare():
 @pytest.fixture
 def eval_questions_prepare():
     eval_questions = []
-    with open('tests/rag/eval_questions.txt', 'r') as file:
+    with open('tests/rag_bedrock/eval_questions.txt', 'r') as file:
         for line in file:
             # Remove newline character and convert to integer
             item = line.strip()

@@ -18,44 +18,28 @@ import numpy as np
 import nest_asyncio
 
 import rag_assistant.utils.utilsrag_li
-from rag_assistant.utils.utilsrag_li import create_sentence_window_engine
+from trulens_eval.app import App
 
 import boto3
 from trulens_eval import (
     Feedback,
     TruLlama,
-    OpenAI,
-    Tru, Select
 )
-from trulens_eval.app import App
+from trulens_eval.feedback.provider.bedrock import Bedrock as TruBedrock
 
-load_dotenv(find_dotenv())
-
-# Set OpenAI API key from Streamlit secrets
-openai_api_key = os.getenv('OPENAI_API_KEY')
+_ = load_dotenv(find_dotenv())
 
 nest_asyncio.apply()
 
 aws_profile_name = os.getenv("profile_name")
-
-test_name = "Claude_3_LlamaIndex"
+test_name = "Claude_2_LlamaIndex"
 aws_region_name = "eu-central-1"
-model_name = "anthropic.claude-3-sonnet-20240229-v1:0"
+model_name = "anthropic.claude-v2:1"
 bedrock_endpoint_url = "https://bedrock-runtime.eu-central-1.amazonaws.com"
 embedded_model_id = "amazon.titan-embed-text-v1"
-provider = OpenAI()
+provider = TruBedrock()
 
-
-def get_openai_api_key():
-    _ = load_dotenv(find_dotenv())
-
-    return os.getenv("OPENAI_API_KEY")
-
-
-def get_hf_api_key():
-    _ = load_dotenv(find_dotenv())
-
-    return os.getenv("HUGGINGFACE_API_KEY")
+topic = "How to Build a Career in AI"
 
 
 def get_prebuilt_trulens_recorder(query_engine, app_id, feedbacks):
@@ -83,48 +67,14 @@ def temp_dir(request):
 @pytest.fixture
 def docs_prepare():
     documents = SimpleDirectoryReader(
-        input_files=["tests/rag/eval_document.pdf",
+        input_files=["tests/rag_bedrock/eval_document.pdf",
                      ]
     ).load_data()
     return documents
 
 
-@pytest.fixture(scope="module")
-def prepare_bedrock():
-    """
-    instantiating the Bedrock client, and passing in the CLI profile
-    """
-    boto3.setup_default_session(profile_name=aws_profile_name)
-    bedrock = boto3.client('bedrock-runtime',
-                           region_name=aws_region_name,
-                           )
-    return bedrock
-
-
-@pytest.fixture
-def llm_prepare(prepare_bedrock):
-    llm = Bedrock(
-        client=prepare_bedrock,
-        model=model_name,
-        region_name=aws_region_name
-    )
-
-    Settings.llm = llm
-    return llm
-
-
-@pytest.fixture
-def embeddings_prepare(prepare_bedrock):
-    embed_model = BedrockEmbedding(
-        client=prepare_bedrock,
-        model_name=embedded_model_id,
-        region_name=aws_region_name)
-    Settings.embed_model = embed_model
-    return embed_model
-
-
 @pytest.fixture()
-def prepare_query_engine(docs_prepare, llm_prepare, embeddings_prepare):
+def query_engine(llm_prepare, docs_prepare, embeddings_prepare):
     splitter = SentenceSplitter(chunk_size=1024)
     nodes = splitter.get_nodes_from_documents(docs_prepare)
     summary_index = SummaryIndex(nodes)
@@ -138,14 +88,15 @@ def prepare_query_engine(docs_prepare, llm_prepare, embeddings_prepare):
     summary_tool = QueryEngineTool.from_defaults(
         query_engine=summary_query_engine,
         description=(
-            "Useful for summarization questions."
+            f"Use ONLY IF you want to get a holistic summary of {topic}."
+            f"Do NOT use if you have specific questions on {topic}."
         ),
     )
 
     vector_tool = QueryEngineTool.from_defaults(
         query_engine=vector_query_engine,
         description=(
-            "Useful for retrieving specific context."
+            f"Useful for retrieving specific questions over {topic}."
         ),
     )
     query_engine = RouterQueryEngine(
@@ -162,10 +113,11 @@ def prepare_query_engine(docs_prepare, llm_prepare, embeddings_prepare):
     return query_engine
 
 
-@pytest.fixture()
-def prepare_feedbacks(prepare_query_engine):
 
-    context = App.select_context(prepare_query_engine)
+@pytest.fixture()
+def prepare_feedbacks(query_engine):
+
+    context = App.select_context(query_engine)
 
     qa_relevance = (
         Feedback(provider.relevance_with_cot_reasons, name="Answer Relevance")
@@ -189,10 +141,44 @@ def prepare_feedbacks(prepare_query_engine):
     return feedbacks
 
 
+
+@pytest.fixture(scope="module")
+def prepare_bedrock():
+    """
+    instantiating the Bedrock client, and passing in the CLI profile
+    """
+    boto3.setup_default_session(profile_name=aws_profile_name)
+    bedrock = boto3.client('bedrock-runtime',
+                           region_name=aws_region_name,
+                           )
+    return bedrock
+
+
+@pytest.fixture
+def llm_prepare(prepare_bedrock):
+    llm = Bedrock(
+        client=prepare_bedrock,
+        model=model_name,
+    )
+
+    Settings.llm = llm
+    return llm
+
+
+@pytest.fixture
+def embeddings_prepare(prepare_bedrock):
+    embed_model = BedrockEmbedding(
+        client=prepare_bedrock,
+        model_name=embedded_model_id
+    )
+    Settings.embed_model = embed_model
+    return embed_model
+
+
 @pytest.fixture
 def eval_questions_prepare():
     eval_questions = []
-    with open('tests/rag/eval_questions.txt', 'r') as file:
+    with open('tests/rag_bedrock/eval_questions.txt', 'r') as file:
         for line in file:
             # Remove newline character and convert to integer
             item = line.strip()
@@ -202,15 +188,15 @@ def eval_questions_prepare():
 
 
 def test_query_engine(temp_dir, llm_prepare, docs_prepare, eval_questions_prepare,
-                      prepare_query_engine, trulens_prepare, prepare_feedbacks):
+                         trulens_prepare, prepare_feedbacks, query_engine):
 
-    tru_recorder = get_prebuilt_trulens_recorder(prepare_query_engine,
+    tru_recorder = get_prebuilt_trulens_recorder(query_engine,
                                                  app_id=f"Router Engine ({test_name})",
                                                  feedbacks=prepare_feedbacks)
 
     with tru_recorder as recording:
         for question in eval_questions_prepare:
             print(f"question: {str(question)}")
-            response = prepare_query_engine.query(question)
+            response = query_engine.query(question)
             print(f"response: {str(response)}")
             assert response is not None, "L'interprétation n'a pas retourné de résultat."

@@ -7,6 +7,6 @@ from trulens_eval import (
 
 @pytest.fixture(scope="package")
 def trulens_prepare():
-    tru = Tru()
+    tru = Tru(database_redact_keys=True)
     tru.reset_database()
     return tru
