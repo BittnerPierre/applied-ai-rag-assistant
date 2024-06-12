@@ -17,6 +17,7 @@ import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
 
+from shared.constants import Metadata, ChunkType
 from .utilsllm import load_embeddings
 from .config_loader import load_config
 
@@ -236,12 +237,13 @@ def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = Non
             if pdf.type == "application/pdf":
                 reader = PdfReader(pdf)
                 for i, page in enumerate(reader.pages, start=1):
-                    page_metadata = {'page': i, 'filename': pdf.name, "type": "Text"}
+                    page_metadata = {Metadata.PAGE.value: i, Metadata.FILENAME.value: pdf.name,
+                                     Metadata.CHUNK_TYPE.value: ChunkType.TEXT.value}
                     file_content = page.extract_text()
                     page_metadata.update(metadata)
                     docs.append(Document(page_content=clean_text(file_content), metadata=page_metadata))
             elif pdf.type == "text/plain":
-                page_metadata = {'filename': pdf.name, "type": "Text"}
+                page_metadata = {Metadata.FILENAME.value: pdf.name, Metadata.CHUNK_TYPE.value: ChunkType.TEXT.value}
                 file_content = pdf.read().decode()  # read file content and decode it
                 docs.append(Document(page_content=clean_text(file_content), metadata=page_metadata))
         return docs
@@ -253,7 +255,7 @@ def load_text(texts: Union[list[UploadedFile], None, UploadedFile], metadata: di
     if texts is not None:
         docs = []
         for txt in texts:
-            page_metadata = {'filename': txt.name}
+            page_metadata = {Metadata.FILENAME: txt.name}
             file_content = txt.read().decode()  # read file content and decode it
             docs.append(Document(page_content=file_content, metadata=metadata))
         return docs
