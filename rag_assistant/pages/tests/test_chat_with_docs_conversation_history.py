@@ -78,13 +78,19 @@ def test_chat_with_docs(mock_load_config):
     assert at.chat_message[1].markdown[0].value == "To secure sensitive data, you can use encryption, access controls, and regular audits."
     assert at.chat_message[1].avatar == "assistant"
     assert not at.exception
+    print(at.columns)
+    assert at.columns[3].button[0].label == '🚮'
+    at.sidebar.button[0].click().run()
+    #assert len(at.session_state.chat_histories) == 0
 
-def test_delete_chat_session():
-    at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/pages/0_Chat_with_Docs.py")
-    at.run()
-    assert not at.exception
-    print(at.button)
-    assert at.button[1].label == '🚮'
+# def test_delete_chat_session():
+#     at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/pages/0_Chat_with_Docs.py")
+#     at.run()
+#     assert not at.exception
+#     # session_id =  "test_session_id"
+#     # st.session_state["session_id"] = session_id
+#     print(at.columns)
+#     assert at.button[1].label == '🚮'
     # at.button[1].click().run()
     # assert len(at.session_state.chat_histories) == 0
     #delete_button = at.sidebar.button("Delete")
