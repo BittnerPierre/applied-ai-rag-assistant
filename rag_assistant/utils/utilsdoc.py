@@ -19,7 +19,7 @@ import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
 
-from ..shared.constants import Metadata, ChunkType
+from shared.constants import Metadata, ChunkType
 from .utilsllm import load_embeddings
 from .config_loader import load_config
 
