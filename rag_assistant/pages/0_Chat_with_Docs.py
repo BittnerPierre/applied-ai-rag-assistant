@@ -9,16 +9,13 @@ from langchain.chains.retrieval import create_retrieval_chain
 from langchain.memory import ConversationBufferMemory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, \
-    HumanMessagePromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.tracers.context import tracing_v2_enabled
 from langsmith import traceable
 
-from shared.constants import Metadata
+from utils.constants import Metadata
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback

@@ -22,7 +22,6 @@ from langchain.schema import StrOutputParser
 from langchain.schema.runnable import RunnableParallel, RunnablePassthrough
 
 from .config_loader import load_config
-from .utilsdoc import load_store
 
 config = load_config()
 

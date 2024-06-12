@@ -1,8 +1,7 @@
 import streamlit as st
-from langchain_community.document_loaders.pdf import PyPDFLoader
 import os
 
-from shared.constants import DocumentType, SupportedFileType, Metadata
+from utils.constants import DocumentType, SupportedFileType, Metadata
 from utils.config_loader import load_config
 from utils.utilsdoc import load_doc, load_store
 

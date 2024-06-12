@@ -11,7 +11,7 @@ from langchain_core.documents import Document
 from pypdf import PdfReader
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from shared.constants import ChunkType, Metadata
+from utils.constants import ChunkType, Metadata
 from utils.config_loader import load_config
 from utils.utilsdoc import clean_text
 

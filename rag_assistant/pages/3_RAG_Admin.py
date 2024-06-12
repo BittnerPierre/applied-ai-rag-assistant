@@ -2,7 +2,7 @@ import streamlit as st
 
 import json
 
-from shared.constants import DocumentType, ChunkType, Metadata
+from utils.constants import DocumentType, ChunkType, Metadata
 from utils.utilsdoc import get_store, empty_store, extract_unique_name
 from utils.config_loader import load_config
 

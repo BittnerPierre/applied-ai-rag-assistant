@@ -9,17 +9,16 @@ from PyPDF2 import PdfReader
 from langchain.docstore.document import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
-from langchain_text_splitters import RecursiveCharacterTextSplitter, CharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 import re
 import os
 from pathlib import Path
-import faiss
 import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
 
-from shared.constants import Metadata, ChunkType
+from .constants import Metadata, ChunkType
 from .utilsllm import load_embeddings
 from .config_loader import load_config
 
