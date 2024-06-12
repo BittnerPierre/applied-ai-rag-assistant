@@ -3,7 +3,7 @@ import streamlit as st
 import json
 
 from utils.constants import DocumentType, ChunkType, Metadata
-from utils.utilsdoc import get_store, empty_store, extract_unique_name
+from utils.utilsdoc import get_store, empty_store, extract_unique_name, get_collection_count, get_metadatas, delete_documents_by_type_and_name
 from utils.config_loader import load_config
 
 
@@ -19,9 +19,7 @@ def main():
 
     # collection_name = st.selectbox("Collection", ["Default", "RAG"])
 
-    store = get_store()
-    collection = store._collection
-    count = collection.count()
+    count = get_collection_count()
     if count > 0:
         st.write(f"There are {count} chunks in the collection.")
     else:
@@ -73,7 +71,7 @@ def main():
                     where = filters[0]
                 else:
                     where = {}
-
+                store = get_store()
                 result = store.similarity_search(search, k=5, filter=where)  # , kwargs={"score_threshold": .8}
                 st.write(result)
             else:
@@ -85,21 +83,20 @@ def main():
     with col1:
         file_name_to_delete = st.selectbox("Select File Name", unique_filenames, index=None)
         if st.button("Delete File data"):
-            collection.delete(where={"filename": {"$eq": f"{file_name_to_delete}"}})
+            delete_documents_by_type_and_name(collection_name=collection_name, type=Metadata.FILENAME.value, name=file_name_to_delete)
 
     with col2:
         topic_name_to_delete = st.selectbox("Select Topic", unique_topic_names, index=None)
         if st.button("Delete Topic Data"):
-            collection.delete(where={"topic_name": {"$eq": f"{topic_name_to_delete}"}})
+            delete_documents_by_type_and_name(collection_name=collection_name, type=Metadata.TOPIC.value, name=topic_name_to_delete)
 
     if st.button("Delete collection"):
         empty_store(collection_name=collection_name)
 
-    if collection:
-        with st.expander("See All Metadatas", expanded=False):
-            st.subheader("Metadatas")
-            metadatas = collection.get()['metadatas']
-            st.code(json.dumps(metadatas, indent=4, sort_keys=True), language="json")
+    with st.expander("See All Metadatas", expanded=False):
+        st.subheader("Metadatas")
+        metadatas = get_metadatas(collection_name=collection_name)
+        st.code(json.dumps(metadatas, indent=4, sort_keys=True), language="json")
 
 
 if __name__ == "__main__":
