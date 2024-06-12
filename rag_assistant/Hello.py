@@ -16,7 +16,7 @@ st.set_page_config(
 def main():
     st.title("Welcome Page")
 
-    st.write(f"""# Welcome to {app_name} ! 👋""")
+    st.write(f"""# Welcome to My LLM+RAG Assistant ! 👋""")
 
     st.markdown(
         """
