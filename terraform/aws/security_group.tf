@@ -28,3 +28,15 @@ resource "aws_security_group" "ai_assistant_security_group" {
     ipv6_cidr_blocks = ["::/0"]
   }
 }
+
+resource "aws_security_group" "ai_assistant_opensearch" {
+  name        = "ai-assistant-opensearch"
+  vpc_id      = data.aws_vpc.ai_assistant_vpc.id
+
+  ingress {
+    from_port = 443
+    to_port   = 443
+    protocol  = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}

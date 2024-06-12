@@ -42,3 +42,35 @@ resource "aws_iam_role_policy_attachment" "ai_assistant_bedrock_access_role_atta
   policy_arn = "arn:aws:iam::aws:policy/AmazonBedrockFullAccess"
   role       =  aws_iam_role.ai_assistant_ecs_execution_role.name
 }
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_opensearch_access_role_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonOpenSearchServiceFullAccess"
+  role       =  aws_iam_role.ai_assistant_ecs_execution_role.name
+}
+
+
+resource "aws_iam_policy" "ai_assistant_s3_access_policy" {
+  name        = "ai_assistant_s3_access_policy"
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.ai_assistant_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ai_assistant_s3_access_role_attachment" {
+  policy_arn = aws_iam_policy.ai_assistant_s3_access_policy.arn
+  role       = aws_iam_role.ai_assistant_ecs_execution_role.name
+}
