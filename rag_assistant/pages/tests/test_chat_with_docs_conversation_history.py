@@ -41,7 +41,7 @@ def mock_llm_response(*args, **kwargs):
 
 
 def test_new_chat_session():
-    at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/Hello.py")
+    at = AppTest.from_file("../Hello.py")
     at.run(timeout=10)  # Increase the timeout to 10 seconds
     assert not at.exception
     assert at.title[0].value == "Welcome Page"
@@ -55,7 +55,7 @@ def test_new_chat_session():
  
 @patch('langchain_core.runnables.history.RunnableWithMessageHistory.invoke', side_effect=mock_llm_response)
 def test_chat_with_docs(mock_load_config):
-    at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/pages/0_Chat_with_Docs.py")
+    at = AppTest.from_file("./pages/0_Chat_with_Docs.py")
     at.run(timeout=10)
     assert not at.exception
  
