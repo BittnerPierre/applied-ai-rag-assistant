@@ -1,6 +1,7 @@
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from typing import Union, Optional
 from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import OpenSearchVectorSearch
 
 from langchain.text_splitter import TokenTextSplitter
 
@@ -19,6 +20,10 @@ from langchain_community.vectorstores import Chroma
 import uuid
 
 from .constants import Metadata, ChunkType
+from requests_aws4auth import AWS4Auth
+from botocore.session import Session
+from opensearchpy import RequestsHttpConnection
+
 from .utilsllm import load_embeddings
 from .config_loader import load_config
 
@@ -27,9 +32,7 @@ config = load_config()
 
 
 def extract_unique_name(collection_name : str, key : str):
-    store = get_store(collection_name=collection_name)
-    collection = store._collection
-    metadatas = collection.get()['metadatas']
+    metadatas = get_metadatas(collection_name=collection_name)
 
     unique_names = set()
     for item in metadatas:
@@ -37,6 +40,56 @@ def extract_unique_name(collection_name : str, key : str):
             unique_names.add(item[key])
     return unique_names
 
+
+def get_metadatas(collection_name : str):
+    store = get_store(collection_name=collection_name)
+    if isinstance(store, OpenSearchVectorSearch):
+        client = store.client
+        index_name = collection_name.lower()
+        response = client.search(
+            index=index_name,
+            body={
+                "query": {
+                    "match_all": {}
+                },
+                "_source": {
+                    "includes": ["metadata"]
+                }
+            }
+        )
+        documents = response['hits']['hits']
+        metadatas = [doc['_source']['metadata'] for doc in documents]
+    else:
+        collection = store._collection
+        metadatas = collection.get()['metadatas']
+
+    return metadatas
+
+
+def delete_documents_by_type_and_name(collection_name: str, type: str, name: str):
+    if type not in [Metadata.FILENAME.value, Metadata.TOPIC.value]:
+        raise ValueError(f"Type {type} not supported for deletion")
+
+    store = get_store(collection_name=collection_name)
+    if isinstance(store, OpenSearchVectorSearch):
+        client = store.client
+        index_name = collection_name.lower()
+
+        response = client.delete_by_query(
+            index=index_name,
+            body={
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"match": {f"metadata.{type}": name}},
+                        ]
+                    }
+                }
+            }
+        )
+    else:
+        collection = store._collection
+        collection.delete(where={f"{type}": {"$eq": f"{name}"}})
 
 def split_documents(documents: list[Document]):
     # Initialize text splitter
@@ -176,6 +229,28 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
         )
         # Since Chroma 0.4.x the manual persistence method is no longer supported as docs are automatically persisted.
         # db.persist()
+    elif vectordb == "opensearch":
+        credentials = Session().get_credentials()
+        aws_region = config.get('VECTORDB', 'opensearch_aws_region')
+
+        awsauth = AWS4Auth(region=aws_region, service='es',
+                    refreshable_credentials=credentials)
+
+        opensearch_url = config.get('VECTORDB', 'opensearch_url')
+        # Index name should be lowercase
+        index_name = config.get('VECTORDB', 'collection_name').lower()
+
+        db = OpenSearchVectorSearch.from_documents(
+            documents,
+            embedding=embeddings,
+            opensearch_url=opensearch_url,
+            http_auth=awsauth,
+            timeout=300,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+            index_name=index_name,
+        )
     else:
         raise NotImplementedError(f"{vectordb} load_store not implemented yet")
 
@@ -213,11 +288,45 @@ def get_store(embeddings: Embeddings = None, collection_name=None) -> VectorStor
         persistent_client = chromadb.PersistentClient(path=persist_directory)
 
         db = Chroma(client=persistent_client, collection_name=collection_name, embedding_function=embeddings)
+
+    elif vectordb == "opensearch":
+        credentials = Session().get_credentials()
+        aws_region = config.get('VECTORDB', 'opensearch_aws_region')
+
+        awsauth = AWS4Auth(region=aws_region, service='es',
+                    refreshable_credentials=credentials)
+        
+        opensearch_url = config.get('VECTORDB', 'opensearch_url')
+        # Index name should be lowercase
+        index_name = collection_name.lower()
+
+        db = OpenSearchVectorSearch(
+            opensearch_url=opensearch_url,
+            embedding_function=embeddings,
+            http_auth=awsauth,
+            timeout=300,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+            index_name=index_name,
+        )
     else:
         raise NotImplementedError(f"{vectordb} get_store not implemented yet")
 
     return db
 
+def get_collection_count() -> int:
+    """Get the number of documents in a collection (chroma, FAISS) or an index (opensearch)"""
+    store = get_store()
+    if isinstance(store, OpenSearchVectorSearch):
+        client = store.client
+        collection_name = config.get('VECTORDB', 'collection_name')
+        index_name = collection_name.lower()
+        count = client.count(index=index_name)['count']
+    else:
+        collection = store._collection
+        count = collection.count()
+    return count
 
 def clean_text(s):
     regex_replacements = [
