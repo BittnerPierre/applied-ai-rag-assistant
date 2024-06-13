@@ -28,10 +28,6 @@ def mock_get_store():
 def mock_load_model(streaming=False):
     return MagicMock()
 
-# Patch the modules before importing the app
-# @patch('utils.config_loader.load_config')
-# @patch('utils.utils.utilsdoc.get_store')
-# @patch('utils.utils.utilsllm.load_model')
 sys.modules['utils.config_loader'] = MagicMock(load_config=mock_load_config)
 sys.modules['utils.utilsdoc'] = MagicMock(get_store=mock_get_store)
 sys.modules['utils.utilsllm'] = MagicMock(load_model=mock_load_model)
@@ -98,18 +94,4 @@ def test_chat_with_docs(mock_load_config):
     # delete_button.click().run()
     # # Check that the chat session is deleted
     # assert len(at.session_state.chat_histories) == 0
-
-
-    # at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/Hello.py")
-    # at.run(timeout=10)  # Increase the timeout to 10 seconds
-    # assert not at.exception
-    # assert at.title[0].value == "Welcome Page"
-    # at.switch_page("pages/0_Chat_with_Docs.py").run()
-    # assert not at.exception
-    # print(at.sidebar.button)
-    # assert at.sidebar.button[0].label == 'New Chat'
-    # at.sidebar.button[0].click().run()
-    # # Check that a new chat session is created
-    # assert len(at.session_state.chat_histories) == 2
-
 

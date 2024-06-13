@@ -16,7 +16,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, Syst
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tracers.context import tracing_v2_enabled
 from langsmith import traceable
-
+import uuid
 from utils.utilsdoc import get_store
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
@@ -151,10 +151,10 @@ class PrintRetrievalHandler(BaseCallbackHandler):
         self.status.update(state="complete")
 
 
-def get_session_history(session_id: str) -> BaseChatMessageHistory:
-    if session_id not in st.session_state.store:
-        st.session_state.store[session_id] = StreamlitChatMessageHistory(key="chat_history")
-    return st.session_state.store[session_id]
+# def get_session_history(session_id: str) -> BaseChatMessageHistory:
+#     if session_id not in st.session_state.store:
+#         st.session_state.store[session_id] = StreamlitChatMessageHistory(key="chat_history")
+#     return st.session_state.store[session_id]
 
 
 def configure_retriever():
@@ -181,8 +181,9 @@ st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
 retriever = configure_retriever()
 
 # Setup memory for contextual conversation
+memory = ConversationBufferMemory(return_messages=True)
 
-st.session_state.store = {}
+#st.session_state.store = {}
 
 #
 # L     L     MM     MM
@@ -239,7 +240,7 @@ rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chai
 
 conversational_rag_chain = RunnableWithMessageHistory(
     rag_chain,
-    get_session_history,
+    get_chat_history,
     input_messages_key="input",
     history_messages_key="chat_history",
     output_messages_key="answer",
@@ -286,7 +287,11 @@ suggested_questions = [
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
+    session_id = get_session_id()
+    msgs = get_chat_history(session_id)
+
     st.chat_message("user").write(user_query)
+    #st.chat_message("user").write(user_query)
     with ((st.chat_message("assistant"))):
         # Retrieving the streamlit context to bind it to call back
         # in order to write in another threadcontext
@@ -314,7 +319,7 @@ def handle_assistant_response(user_query):
         ai_response = conversational_rag_chain.invoke(
                 input={"input": user_query},
                 config={
-                    "configurable": {"session_id": sessionid},
+                    "configurable": {"session_id": session_id},
                     "callbacks": [
                         retrieval_handler,
                         stream_handler
