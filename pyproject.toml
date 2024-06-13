@@ -62,6 +62,9 @@ llama-index-embeddings-bedrock = ">=0.1.5"
 langchain_mistralai = ">=0.1.0"
 langchain-aws = ">=0.1.4"
 
+opensearch-py = ">=2.6.0"
+requests-aws4auth = ">=1.2.3"
+
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
 mypy = "^1.4.1"
