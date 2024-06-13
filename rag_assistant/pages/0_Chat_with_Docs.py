@@ -1,6 +1,5 @@
 import os
 import threading
-
 import streamlit as st
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
@@ -50,12 +49,10 @@ handler.setFormatter(formatter) # Add the formatter to the handler
 # Add the handler to the logger
 logger.addHandler(handler)
 
-
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
 
-#sessionid = "abc123"
-
+# Generate a new session ID
 def get_session_id():
     if "session_id" not in st.session_state:
         now = datetime.datetime.now()
@@ -63,6 +60,7 @@ def get_session_id():
         st.session_state.session_id = session_id                    
     return st.session_state.session_id
 
+# Retrieve chat history for a given session
 def get_chat_history(session_id):
     if "chat_histories" not in st.session_state:
         st.session_state.chat_histories = {}
@@ -107,7 +105,6 @@ __template2__ = """You are an assistant designed to guide software application a
     
     To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
 
-
 class StreamHandler(BaseCallbackHandler):
     def __init__(self, container: st.delta_generator.DeltaGenerator, ctx, initial_text: str = ""):
         self.container = container
@@ -116,12 +113,8 @@ class StreamHandler(BaseCallbackHandler):
         self.ctx = ctx
 
     def on_llm_start(self, serialized: dict, prompts: list, **kwargs):
-        # Workaround to prevent showing the rephrased question as output
-        # THIS TRICKS DOES NOT WORK IF THERE IS A SYSTEM PROMPT
-        # SO QUESTION IS SHOWED WHEN STREAMING AND THEN CLEARED with final result
         if prompts[0].startswith("Human"):
             self.run_id_ignore_token = kwargs.get("run_id")
-        # adding current thread to streamlit context to be able to display streaming
         add_script_run_ctx(threading.current_thread(), self.ctx)
 
     def on_llm_new_token(self, token: str, **kwargs) -> None:
@@ -130,15 +123,12 @@ class StreamHandler(BaseCallbackHandler):
         self.text += token
         self.container.markdown(self.text)
 
-
-# Define the callback handler for printing retrieval information
 class PrintRetrievalHandler(BaseCallbackHandler):
     def __init__(self, container, ctx):
         self.status = container.status("**Context Retrieval**")
         self.ctx = ctx
 
     def on_retriever_start(self, serialized: dict, query: str, **kwargs):
-        # adding current thread to streamlit context to be able to display streaming
         add_script_run_ctx(threading.current_thread(), self.ctx)
         self.status.write(f"**Question:** {query}")
         self.status.update(label=f"**Context Retrieval:** {query}")
@@ -150,74 +140,37 @@ class PrintRetrievalHandler(BaseCallbackHandler):
             self.status.markdown(doc.page_content)
         self.status.update(state="complete")
 
-
-# def get_session_history(session_id: str) -> BaseChatMessageHistory:
-#     if session_id not in st.session_state.store:
-#         st.session_state.store[session_id] = StreamlitChatMessageHistory(key="chat_history")
-#     return st.session_state.store[session_id]
-
-
 def configure_retriever():
     vectordb = get_store()
-
-    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
-
+    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5})
     return retriever
 
-
 def _submit_feedback(user_response, emoji=None):
-    if user_response['score'] == '👍':
-        feedback_score = '+1'
-    else:
-        feedback_score = '-1'
+    feedback_score = '+1' if user_response['score'] == '👍' else '-1'
     logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
     return user_response
 
-
 st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
 
-
-# Configure the retriever with PDF files
 retriever = configure_retriever()
-
-# Setup memory for contextual conversation
 memory = ConversationBufferMemory(return_messages=True)
-
-#st.session_state.store = {}
-
-#
-# L     L     MM     MM
-# L     L     M M   M M
-# L     L     M  M M  M
-# LLLL  LLLL  M   M   M
-#
-
-# Setup LLM and QA chain
 llm = load_model(streaming=True)
 
-# msgs = StreamlitChatMessageHistory()
-# msgs = get_session_history(sessionid)
-# memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
-
-### Contextualize question ###
 contextualize_q_system_prompt = """Given a chat history and the latest user question \
 which might reference context in the chat history, formulate a standalone question \
 which can be understood without the chat history. Do NOT answer the question, \
 just reformulate it if needed and otherwise return it as is.
 Maintain the same language as the user question.
 """
-contextualize_q_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", contextualize_q_system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ]
-)
-history_aware_retriever = create_history_aware_retriever(
-    llm, retriever, contextualize_q_prompt
-)
 
-### Answer question ###
+contextualize_q_prompt = ChatPromptTemplate.from_messages([
+    ("system", contextualize_q_system_prompt),
+    MessagesPlaceholder("chat_history"),
+    ("human", "{input}"),
+])
+
+history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
+
 qa_system_prompt = """You are an assistant for question-answering tasks. \
 Use the following pieces of retrieved context to answer the question. \
 If you don't know the answer, just say that you don't know. \
@@ -226,16 +179,14 @@ Maintain the same writing style as used in the context.\
 Keep the same language as the follow up question.
 
 {context}"""
-qa_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", qa_system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ]
-)
+
+qa_prompt = ChatPromptTemplate.from_messages([
+    ("system", qa_system_prompt),
+    MessagesPlaceholder("chat_history"),
+    ("human", "{input}"),
+])
 
 question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
-
 rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
 conversational_rag_chain = RunnableWithMessageHistory(
@@ -246,44 +197,12 @@ conversational_rag_chain = RunnableWithMessageHistory(
     output_messages_key="answer",
 )
 
-
-# llm_stream = load_model(streaming=True)
-#
-#
-# general_system_template = r"""
-# Given a specific context, please give a short answer to the question,
-#  covering the required advices in general
-#
-# Context:
-# ----
-# {context}
-# ----
-# Please respond while maintaining the same writing style as used in this excerpt.
-# Maintain the same language as the follow up input message.
-# """
-#
-# # Was in the previous prompt
-# #  and then provide the names all of relevant (even if it relates a bit) products.
-#
-# general_user_template = "Question:```{question}```"
-# messages = [
-#             SystemMessagePromptTemplate.from_template(general_system_template),
-#             HumanMessagePromptTemplate.from_template(general_user_template)
-# ]
-# qa_prompt = ChatPromptTemplate.from_messages(messages)
-#
-# qa_chain = ConversationalRetrievalChain.from_llm(
-#     llm_stream, retriever=retriever, memory=memory, verbose=True,
-#     combine_docs_chain_kwargs={'prompt': qa_prompt}
-# )
-
 suggested_questions = [
     "Comment sécuriser les données sensibles ?",
     "Quelles stratégies pour une haute disponibilité ?",
     "Quels sont les mécanismes d'authentification API ?",
-    "Comment assurez l'efficacité des performances ?",
+    "Comment assurer l'efficacité des performances ?",
 ]
-
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
@@ -291,100 +210,31 @@ def handle_assistant_response(user_query):
     msgs = get_chat_history(session_id)
 
     st.chat_message("user").write(user_query)
-    #st.chat_message("user").write(user_query)
     with ((st.chat_message("assistant"))):
-        # Retrieving the streamlit context to bind it to call back
-        # in order to write in another threadcontext
         ctx = get_script_run_ctx()
         retrieval_handler = PrintRetrievalHandler(st.container(), ctx)
-        # RETRIEVE THE CONTAINER TO CLEAR IT LATER to not show question twice
         e = st.empty()
         stream_handler = StreamHandler(e, ctx)
-        # CODE WORKING BUT ALL LC API
-        # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
-        # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
-        # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
-        # ai_response = qa_chain.invoke({"question": user_query},
-        #                               {"configurable": {"session_id": sessionid},
-        #                                   "callbacks": [
-        #                                   retrieval_handler,
-        #                                   stream_handler
-        #                                 ]
-        #                               },
-        # )["answer"]
-        # END CODE WORKING WITH ALL LC API
-
-        # NEW API OF LANGCHAIN
-        # PROMPT NEED TO BE CHANGED
         ai_response = conversational_rag_chain.invoke(
-                input={"input": user_query},
-                config={
-                    "configurable": {"session_id": session_id},
-                    "callbacks": [
-                        retrieval_handler,
-                        stream_handler
-                    ]
-                },
-            )["answer"]
-        # emptying container to remove initial question that is render by llm
+            input={"input": user_query},
+            config={
+                "configurable": {"session_id": session_id},
+                "callbacks": [
+                    retrieval_handler,
+                    stream_handler,
+                ],
+            },
+        )["answer"]
         e.empty()
         with e.container():
             st.markdown(ai_response)
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
-
-
 def suggestion_clicked(question):
     st.session_state.user_suggested_question = question
 
-
-# def main():
-#     st.title("Chat with Documents")
-
-#     msgs = get_session_history(sessionid)
-
-#     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
-#         msgs.clear()
-#         #msgs.add_ai_message("Comment puis-je vous aider?")
-
-
-#     # Display suggested questions in a 2x2 table
-#     col1, col2 = st.columns(2)
-#     for i, question in enumerate(suggested_questions, start=1):
-#         # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
-#         col = col1 if i % 2 != 0 else col2
-#         col.button(question, on_click=suggestion_clicked, args=[question])
-
-
-#     # Chat interface
-#     avatars = {"human": "user", "ai": "assistant"}
-#     msgs = get_session_history(sessionid)
-#     for i, msg in enumerate(msgs.messages):
-#         st.chat_message(avatars[msg.type]).write(msg.content)
-#         if (msg.type == "ai") and (i > 0):
-#             streamlit_feedback(feedback_type = "thumbs",
-#                                optional_text_label="Cette réponse vous convient-elle?",
-#                                key=f"feedback_{i}",
-#                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
-
-
-#     # Handle suggested questions
-#     if "user_suggested_question" in st.session_state:
-#         user_query = st.session_state.user_suggested_question
-#         st.session_state.pop("user_suggested_question")  # Clear the session state
-#         handle_assistant_response(user_query)
-
-#     #Handle user queries
-#     if user_query := st.chat_input(placeholder="Ask me anything!"):
-#         handle_assistant_response(user_query)
-
-
-# if __name__ == "__main__":
-#     main()
-
 def main():
     st.title("Chat with Documents")
-
     st.sidebar.title("Chat Sessions")
 
     session_id = get_session_id()
@@ -393,6 +243,8 @@ def main():
     if st.sidebar.button("New Chat"):
         session_id = str(datetime.datetime.now())
         st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+        st.session_state.session_id = session_id
+        st.experimental_rerun()  # Ensure the new chat session is reflected immediately
 
     selected_session = session_id
     for chat_session in chat_sessions:
@@ -401,10 +253,11 @@ def main():
             if st.button(chat_session):
                 selected_session = chat_session
                 st.session_state.session_id = selected_session
+                st.experimental_rerun()
         with col2:
             if st.button("🚮", key=f"delete_{chat_session}"):
                 del st.session_state.chat_histories[chat_session]
-                st.rerun()  # Refresh the page
+                st.experimental_rerun()  # Refresh the page
 
     if selected_session != session_id:
         session_id = selected_session
@@ -415,33 +268,27 @@ def main():
     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
         msgs.clear()
 
-    # Display suggested questions in a 2x2 table
     col1, col2 = st.columns(2)
     for i, question in enumerate(suggested_questions, start=1):
         col = col1 if i % 2 != 0 else col2
         col.button(question, on_click=suggestion_clicked, args=[question])
 
-    # Chat interface
     avatars = {"human": "user", "ai": "assistant"}
-    msgs = get_chat_history(session_id)
     for i, msg in enumerate(msgs.messages):
         st.chat_message(avatars[msg.type]).write(msg.content)
-        if (msg.type == "ai") and (i > 0):
-            streamlit_feedback(feedback_type = "thumbs",
+        if msg.type == "ai" and i > 0:
+            streamlit_feedback(feedback_type="thumbs",
                                optional_text_label="Cette réponse vous convient-elle?",
                                key=f"feedback_{i}",
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
-    # Handle suggested questions
     if "user_suggested_question" in st.session_state:
         user_query = st.session_state.user_suggested_question
-        st.session_state.pop("user_suggested_question")  # Clear the session state
+        st.session_state.pop("user_suggested_question")
         handle_assistant_response(user_query)
 
-    # Handle user queries
     if user_query := st.chat_input(placeholder="Ask me anything!"):
         handle_assistant_response(user_query)
-
 
 if __name__ == "__main__":
     main()
