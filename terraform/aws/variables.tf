@@ -68,3 +68,13 @@ variable "opensearch_domain_name" {
   description = "Name of the Opensearch domain"
   type        = string
 }
+
+variable "opensearch_dashboard_user" {
+  description = "Username for Opensearch Dahsboard user"
+  type        = string
+}
+
+variable "opensearch_dashboard_password" {
+  description = "Password for Opensearch Dahsboard user"
+  type        = string
+}
