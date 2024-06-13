@@ -56,3 +56,4 @@ default.sqlite
 /data/faiss
 /logs
 *.log
+/tests/rechdocia

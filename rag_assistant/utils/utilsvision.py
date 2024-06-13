@@ -11,6 +11,7 @@ from langchain_core.documents import Document
 from pypdf import PdfReader
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
+from utils.constants import ChunkType, Metadata
 from utils.config_loader import load_config
 from utils.utilsdoc import clean_text
 
@@ -88,7 +89,7 @@ def load_image(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = N
         docs = []
         if metadata is None:
             metadata = {}
-        metadata.update({"type": "Image"})
+        metadata.update({Metadata.CHUNK_TYPE.value: ChunkType.IMAGE.value})
         for pdf in pdfs:
             if pdf.type == "application/pdf":
                 # Generate a unique identifier for each document
