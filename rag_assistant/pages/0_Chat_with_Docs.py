@@ -10,8 +10,7 @@ from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, \
-    HumanMessagePromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tracers.context import tracing_v2_enabled
 from langsmith import traceable
@@ -29,24 +28,18 @@ from utils.utilsllm import load_model
 load_dotenv(find_dotenv())
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
-# set logging
+# Set logging
 logger = logging.getLogger('AI_assistant_feedback')
 logger.setLevel(logging.INFO)
 
-# Check if the directory exists, if not create it
 log_dir = "logs"
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
-# Create a file handler for the logger
 handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
 handler.setLevel(logging.INFO)
-
-# Create a logging format
 formatter = logging.Formatter('%(asctime)s -  %(message)s')
-handler.setFormatter(formatter) # Add the formatter to the handler  
-
-# Add the handler to the logger
+handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 config = load_config()
@@ -67,6 +60,21 @@ def get_chat_history(session_id):
     if session_id not in st.session_state.chat_histories:
         st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
     return st.session_state.chat_histories[session_id]
+
+# Generate session title using LLM
+def generate_session_title(query):
+    prompt = f"Créez une phrase concise de 3 à 5 mots comme en-tête de la requête suivante, en respectant strictement la limite de 3 à 5 mots et en évitant d'utiliser le mot 'title': {query}"
+    llm = load_model()
+    response = llm.invoke(prompt)
+    
+    # Ensure the response is a string
+    if isinstance(response, str):
+        return response.strip()
+    elif hasattr(response, 'content'):  # For objects like AIMessage
+        return response.content.strip()
+    else:
+        raise ValueError("Unexpected response type from LLM")
+
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -240,24 +248,37 @@ def main():
     session_id = get_session_id()
     chat_sessions = list(st.session_state.get("chat_histories", {}).keys())
 
-    if st.sidebar.button("New Chat"):
-        session_id = str(datetime.datetime.now())
-        st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
-        st.session_state.session_id = session_id
-        st.experimental_rerun()  # Ensure the new chat session is reflected immediately
+    if "chat_titles" not in st.session_state:
+        st.session_state.chat_titles = {}
 
+    if st.sidebar.button("New Chat"):
+        st.session_state.new_chat = True
+
+    if "new_chat" in st.session_state and st.session_state.new_chat:
+        user_query = st.text_input("Please enter your initial query to start a new chat session:")
+        if user_query:
+            session_id = str(datetime.datetime.now())
+            title = generate_session_title(user_query)
+            st.session_state.chat_titles[session_id] = title
+            st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+            st.session_state.session_id = session_id
+            st.session_state.new_chat = False  # Reset new_chat flag
+            handle_assistant_response(user_query)
+            st.experimental_rerun()
     selected_session = session_id
     for chat_session in chat_sessions:
+        title = st.session_state.chat_titles.get(chat_session, chat_session)
         col1, col2 = st.sidebar.columns([0.8, 0.2])
         with col1:
-            if st.button(chat_session):
+            if st.button(title):
                 selected_session = chat_session
                 st.session_state.session_id = selected_session
                 st.experimental_rerun()
         with col2:
             if st.button("🚮", key=f"delete_{chat_session}"):
                 del st.session_state.chat_histories[chat_session]
-                st.experimental_rerun()  # Refresh the page
+                del st.session_state.chat_titles[chat_session]
+                st.experimental_rerun()
 
     if selected_session != session_id:
         session_id = selected_session
