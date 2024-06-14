@@ -11,6 +11,16 @@ from langchain_openai.embeddings import OpenAIEmbeddings, AzureOpenAIEmbeddings
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
 from langchain_aws.embeddings.bedrock import BedrockEmbeddings
 from langchain_aws import ChatBedrock
+from llama_index.core.base.embeddings.base import BaseEmbedding
+from llama_index.core.llms import LLM
+
+from llama_index.embeddings.mistralai import MistralAIEmbedding as LIMistralAIEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding as LIOpenAIEmbedding
+from llama_index.embeddings.bedrock import BedrockEmbedding as LIBedrockEmbedding
+from llama_index.llms.mistralai import MistralAI as LIMistralAI
+from llama_index.llms.openai import OpenAI as LIOpenAI
+from llama_index.llms.bedrock import Bedrock as LIBedrock
+
 
 from dotenv import load_dotenv, find_dotenv
 
@@ -80,16 +90,46 @@ def load_model(model_name: str = None, temperature: float = 0, streaming:bool = 
             model_name = config['BEDROCK']['CHAT_MODEL']
 
         # ChatBedrock --> must be adapted for system prompt get error "first message must use the "user" role"
+        # temperature not supported
         llm = ChatBedrock(
             client=bedrock,
             model_id=model_name,
-            # model_kwargs=model_kwargs,
-            streaming=streaming,
-            #callbacks=[StreamingStdOutCallbackHandler()],
+            streaming=streaming
         )
 
     else:
         raise NotImplementedError(f"Model {provider} unknown.")
+
+    return llm
+
+
+def load_llamaindex_model(model_name: str = None, temperature: float = 0) -> LLM:
+
+    provider = get_model_provider(model_name)
+
+    if provider == "AZURE":
+        raise NotImplementedError(f"Model {provider} unsupported for LlamaIndex.")
+    elif provider == "OPENAI":
+        if model_name is None:
+            model_name = config['OPENAI']['OPENAI_MODEL_NAME']
+        llm = LIOpenAI(model=model_name, temperature=temperature)
+    elif provider == "MISTRAL":
+        if model_name is None:
+            model_name = config['MISTRAL']['CHAT_MODEL']
+        llm = LIMistralAI(api_key=mistral_api_key, model=model_name, temperature=temperature)
+    elif provider == "BEDROCK":
+        if model_name is None:
+            model_name = config['BEDROCK']['CHAT_MODEL']
+
+        # ChatBedrock --> must be adapted for system prompt get error "first message must use the "user" role"
+        llm = LIBedrock(
+            client=bedrock,
+            model=model_name,
+            temperature=temperature
+        )
+
+    else:
+        raise NotImplementedError(f"Model {model_name} unknown.")
 
     return llm
 
@@ -111,9 +151,31 @@ def load_embeddings(model_name: str = None) -> Embeddings:
         embeddings = MistralAIEmbeddings()
     elif provider == "BEDROCK":
         embeddings = BedrockEmbeddings(
+            client=bedrock,
             region_name=bedrock_region_name,
             model_id=bedrock_embeddings_model)
     else:
-        embeddings = OpenAIEmbeddings()
+        raise NotImplementedError(f"Model {model_name} unknown.")
+
+    return embeddings
+
+
+def load_llamaindex_embeddings(model_name: str = None) -> BaseEmbedding:
+
+    provider = get_model_provider(model_name)
+
+    if provider == "AZURE":
+        raise NotImplementedError(f"Embeddings {provider} unsupported for LlamaIndex.")
+    elif provider == "OPENAI":
+        embeddings = LIOpenAIEmbedding()
+    elif provider == "MISTRAL":
+        embeddings = LIMistralAIEmbedding()
+    elif provider == "BEDROCK":
+        embeddings = LIBedrockEmbedding(
+            region_name=bedrock_region_name,
+            model_name=bedrock_embeddings_model,
+            client=bedrock)
+    else:
+        raise NotImplementedError(f"Model {model_name} unknown.")
 
     return embeddings
