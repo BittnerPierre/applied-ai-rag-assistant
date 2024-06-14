@@ -574,18 +574,15 @@ def main():
 
     if st.sidebar.button("New Chat"):
         st.session_state.new_chat = True
+        session_id = str(datetime.datetime.now())
+        st.session_state.session_id = session_id
+        st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+        st.experimental_rerun()
 
     if "new_chat" in st.session_state and st.session_state.new_chat:
-        user_query = st.text_input("Enter your initial query to start a new chat session:")
-        if user_query:
-            session_id = str(datetime.datetime.now())
-            title = generate_session_title(user_query)
-            st.session_state.chat_titles[session_id] = title
-            st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
-            st.session_state.session_id = session_id
-            st.session_state.new_chat = False  # Reset new_chat flag
-            handle_assistant_response(user_query)
-            st.experimental_rerun()
+        st.session_state.new_chat = False  # Reset new_chat flag
+        st.experimental_rerun()
+
     selected_session = session_id
     for chat_session in chat_sessions:
         title = st.session_state.chat_titles.get(chat_session, chat_session)
@@ -601,7 +598,7 @@ def main():
                 del st.session_state.chat_titles[chat_session]
                 st.experimental_rerun()
 
-    if selected_session != session_id:
+    if selected_session!= session_id:
         session_id = selected_session
         st.session_state.session_id = session_id
 
@@ -612,7 +609,7 @@ def main():
 
     col1, col2 = st.columns(2)
     for i, question in enumerate(suggested_questions, start=1):
-        col = col1 if i % 2 != 0 else col2
+        col = col1 if i % 2!= 0 else col2
         col.button(question, on_click=suggestion_clicked, args=[question])
 
     avatars = {"human": "user", "ai": "assistant"}
@@ -630,6 +627,8 @@ def main():
         handle_assistant_response(user_query)
 
     if user_query := st.chat_input(placeholder="Ask me anything!"):
+        title = generate_session_title(user_query)
+        st.session_state.chat_titles[session_id] = title
         handle_assistant_response(user_query)
 
 if __name__ == "__main__":
