@@ -1,9 +1,11 @@
 import os
+import random
 import threading
 from json import JSONDecodeError
 
 import streamlit as st
 from langchain.agents import create_react_agent, AgentExecutor, create_structured_chat_agent
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.tools import ToolException, Tool, tool
 from llama_index.core import StorageContext, load_index_from_storage
 from llama_index.core.response_synthesizers import ResponseMode
@@ -52,11 +54,10 @@ handler.setLevel(logging.INFO)
 
 # Create a logging format
 formatter = logging.Formatter('%(asctime)s -  %(message)s')
-handler.setFormatter(formatter) # Add the formatter to the handler  
+handler.setFormatter(formatter)  # Add the formatter to the handler
 
 # Add the handler to the logger
 logger.addHandler(handler)
-
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
@@ -141,7 +142,7 @@ class PrintRetrievalHandler(BaseCallbackHandler):
         if 'retrievals' not in st.session_state:
             st.session_state['retrievals'] = []
         self.status.write(f"**Question reformulée:** {query}")
-        #self.status.update(label=f"**Context Retrieval:** {query}")
+        # self.status.update(label=f"**Context Retrieval:** {query}")
 
     def on_retriever_end(self, documents, **kwargs):
         for idx, doc in enumerate(documents):
@@ -162,7 +163,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
 def configure_retriever():
     vectordb = get_store()
 
-    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5}) # , "fetch_k": 4
+    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5})  # , "fetch_k": 4
 
     return retriever
 
@@ -177,7 +178,6 @@ def _submit_feedback(user_response, emoji=None):
 
 
 st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
-
 
 # Configure the retriever with PDF files
 retriever = configure_retriever()
@@ -200,14 +200,9 @@ summary_query_engine = doc_summary_index.as_query_engine(
 )
 
 unique_topic_names = extract_unique_name(collection_name, Metadata.TOPIC.value)
-
-# summary_tool = QueryEngineTool.from_defaults(
-#         query_engine=summary_query_engine,
-#         description=(
-#             f"Use ONLY IF you want to get a holistic summary of {unique_topic_names}."
-#             f"Do NOT use if you have specific questions on {unique_topic_names}."
-#         ),
-#     )
+topics = ', '.join(sorted(list(unique_topic_names)))
+if not unique_topic_names:
+    topics = None
 
 
 def _handle_error(error: ToolException) -> str:
@@ -223,11 +218,10 @@ def _handle_error(error: ToolException) -> str:
 
 # Setup LLM and QA chain
 llm_rag = load_model(temperature=0.1, streaming=False)
-llm = load_model(streaming=False)
+llm = load_model(streaming=True)
 
-#llm.bind_tools(lc_tools)
+# llm.bind_tools(lc_tools)
 
-# msgs = StreamlitChatMessageHistory()
 msgs = get_session_history(sessionid)
 memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
@@ -237,7 +231,10 @@ which might reference context in the chat history, formulate a standalone questi
 which can be understood without the chat history. Do NOT answer the question, \
 just reformulate it if needed and otherwise return it as is.
 Maintain the same language as the user question.
-"""
+Do not explain your logic, just output the reformulated question.
+
+Reformulated Question:"""
+
 contextualize_q_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", contextualize_q_system_prompt),
@@ -250,9 +247,10 @@ history_aware_retriever = create_history_aware_retriever(
 )
 
 ### Answer question ###
-qa_system_prompt = """You are an assistant for question-answering tasks. \
+qa_system_prompt = """You are an assistant for question-answering tasks on {topics}. \
 Use the following pieces of retrieved context to answer the question. \
 If you don't know the answer, just say that you don't know. \
+If the question is not on {topics}, don't answer it. \
 Use three sentences maximum and keep the answer concise.\
 Maintain the same writing style as used in the context.\
 Keep the same language as the follow up question.
@@ -286,9 +284,10 @@ def knowledge_summary(question: str) -> str:
     DO NOT USE MULTI-ARGUMENTS INPUT."""
     return summary_query_engine.query(question)
 
+
 @tool
 def question_answerer(question: str) -> str:
-    """Useful when you need to answer a specif question.
+    """Useful when you need to answer a specif question on knowledge.
     DO NOT USE MULTI-ARGUMENTS INPUT."""
     # Retrieving the streamlit context to bind it to call back
     # in order to write in another thread context
@@ -297,61 +296,44 @@ def question_answerer(question: str) -> str:
     # RETRIEVE THE CONTAINER TO CLEAR IT LATER to not show question twice
     e = st.empty()
     stream_handler = StreamHandler(e, ctx)
-    return memory_rag_chain.invoke(input={"input": question}, config={
-                "configurable": {"session_id": sessionid},
-                "callbacks": [
-                    retrieval_handler,
-                    stream_handler
-                ]
-            })['answer']
-
-lc_tools = [knowledge_summary, question_answerer
-        # Tool(
-        #     name=f"Knowledge Summary",
-        #     func=summary_query_engine.query,
-        #     description=f"""Useful IF you need to answer a general question or have "
-        #                 "an holistic summary on {unique_topic_names}."
-        #                 "DO NOT use if you have specific question on {unique_topic_names}."
-        #                 "DO NOT USE MULTI-ARGUMENTS INPUT.""",
-        #     handle_tool_error=_handle_error,
-        # ),
-
-        # Tool(
-        #         name=f"Question answerer",
-        #         func=rag_chain.invoke,
-        #         description=f"""Useful when you need to answer a specif question on {unique_topic_names}. "
-        #                     "DO NOT USE MULTI-ARGUMENTS INPUT.""",
-        #         handle_tool_error=_handle_error,
-        #     ),
+    return memory_rag_chain.invoke(input={"input": question, "topics": topics}, config={
+        "configurable": {"session_id": sessionid},
+        "callbacks": [
+            retrieval_handler,
+            stream_handler
         ]
+    })['answer']
+
+
+lc_tools = [knowledge_summary, question_answerer]
 
 human = '''{input}
 
     {agent_scratchpad}'''
 
 prompt = (ChatPromptTemplate.from_messages(
-        [
-            ("system", __structured_chat_agent__),
-            MessagesPlaceholder("chat_history", optional=True),
-            ("human", human),
-        ]
-    ))
+    [
+        ("system", __structured_chat_agent__),
+        MessagesPlaceholder("chat_history", optional=True),
+        ("human", human),
+    ]
+))
 
 llm.bind_tools(lc_tools)
 agent = create_structured_chat_agent(llm, lc_tools, prompt)
 
 
 def _handle_error2(error) -> str:
-    return str(error)#[:250]
+    return str(error)  # [:250]
+
 
 agent_executor = AgentExecutor(
     agent=agent,
     tools=lc_tools,
     handle_parsing_errors=
-        "Check your output and make sure it includes an action that conforms to the exepected format (json blob)!"
-        " Do not output an action and a final answer at the same time."
-    )
-
+    "Check your output and make sure it includes an action that conforms to the exepected format (json blob)!"
+    " Do not output an action and a final answer at the same time."
+)
 
 conversational_rag_chain = RunnableWithMessageHistory(
     agent_executor,
@@ -363,74 +345,88 @@ conversational_rag_chain = RunnableWithMessageHistory(
 
 main_chain = conversational_rag_chain
 
-
-# llm_stream = load_model(streaming=True)
-#
-#
-# general_system_template = r"""
-# Given a specific context, please give a short answer to the question,
-#  covering the required advices in general
-#
-# Context:
-# ----
-# {context}
-# ----
-# Please respond while maintaining the same writing style as used in this excerpt.
-# Maintain the same language as the follow up input message.
-# """
-#
-# # Was in the previous prompt
-# #  and then provide the names all of relevant (even if it relates a bit) products.
-#
-# general_user_template = "Question:```{question}```"
-# messages = [
-#             SystemMessagePromptTemplate.from_template(general_system_template),
-#             HumanMessagePromptTemplate.from_template(general_user_template)
-# ]
-# qa_prompt = ChatPromptTemplate.from_messages(messages)
-#
-# qa_chain = ConversationalRetrievalChain.from_llm(
-#     llm_stream, retriever=retriever, memory=memory, verbose=True,
-#     combine_docs_chain_kwargs={'prompt': qa_prompt}
-# )
-
-suggested_questions = [
+suggested_questions_examples = [
     "Comment sécuriser les données sensibles ?",
     "Quelles stratégies pour une haute disponibilité ?",
     "Quels sont les mécanismes d'authentification API ?",
     "Comment assurez l'efficacité des performances ?",
+    "Quelles informations doivent être fournies lors du lancement de l'IHM?",
+    "Quel est le rôle de la fonction d'acheminement pour acheminer l'appel de service?",
+    'Quelles sont les principales fonctionnalités du portail fournisseur dans la gestion des API?',
+    "Que comprend la fonction d'exposition dans la gestion des API?"
 ]
 
+
+def conversation_starters():
+    llm = load_model(streaming=True)
+
+    context = summary_query_engine.query("Make a complete summary of knowledge available"
+                                         " on following topics {topics}.")
+
+    ### Answer question ###
+    cs_system_prompt = """You are a helpful solution architect and software engineer assistant.
+        Your users are asking questions on specific topics.\
+        Suggest exactly 6 questions related to the provided context to help them find the information they need. \
+        Suggest only short questions without compound sentences. \
+        Question must be self-explanatory and topic related.
+        Suggest a variety of questions that cover different aspects of the context. \
+        Use the summary of knowledge to generate the question on topics. \
+        Make sure they are complete questions, and that they are related to the topics.
+        Output one question per line. Do not number the questions. Do not group question by topics. 
+        DO NOT make a summary or an introduction of your result. Output ONLY the generated questions.
+        DO NOT output chapter per topic. Avoid blank line.
+        Avoid duplicate question. Generate question in French.
+        Questions: """
+
+    #         Examples:
+    #         What information needs to be provided during IHM launch?
+    #         How is the data transferred to the service call?
+    #         What functions are involved in API Management?
+    #         What does the Exposure function in API Management entail?
+
+    cs_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", cs_system_prompt),
+            ("human", "{topics}"
+                      "{summary}"),
+        ]
+    )
+    output_parser = StrOutputParser()
+    model = load_model(streaming=False)
+
+    chain = cs_prompt | model | output_parser
+    response = chain.invoke({"topics": topics, "summary": context})
+    print(response)
+
+    response_list = [line for line in response.split("\n") if line.strip() != '']
+    if len(response_list) > 4:
+        response_list = random.sample(response_list, 4)
+    elif len(response_list) < 4:
+        diff = 4 - len(response_list)
+        additional_questions = random.sample(suggested_questions_examples, diff)
+        response_list.extend(additional_questions)
+
+    return response_list
+
+
+if 'conversation_starters' not in st.session_state:
+    st.session_state['conversation_starters'] = conversation_starters()
+
+suggested_questions = st.session_state['conversation_starters']
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
     st.chat_message("user").write(user_query)
     with ((st.chat_message("assistant"))):
-        # CODE WORKING BUT ALL LC API
-        # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
-        # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
-        # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
-        # ai_response = qa_chain.invoke({"question": user_query},
-        #                               {"configurable": {"session_id": sessionid},
-        #                                   "callbacks": [
-        #                                   retrieval_handler,
-        #                                   stream_handler
-        #                                 ]
-        #                               },
-        # )["answer"]
-        # END CODE WORKING WITH ALL LC API
-
-        # NEW API OF LANGCHAIN
-        # PROMPT NEED TO BE CHANGED
         if 'retrievals' in st.session_state:
             del st.session_state['retrievals']
         response = main_chain.invoke(
-            input={"input": user_query},
+            input={"input": user_query, "topics": topics},
             config={"configurable": {"session_id": sessionid}}
         )
-        ai_response = response["output"] # "answer"
+        ai_response = response["output"]  # "answer"
         # emptying container to remove initial question that is render by llm
-        #e.empty()
+        # e.empty()
         e = st.empty()
         with e.container():
             st.markdown(ai_response)
@@ -476,16 +472,15 @@ def main():
 
     if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
         msgs.clear()
-        #msgs.add_ai_message("Comment puis-je vous aider?")
-
 
     # Display suggested questions in a 2x2 table
-    col1, col2 = st.columns(2)
-    for i, question in enumerate(suggested_questions, start=1):
-        # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
-        col = col1 if i % 2 != 0 else col2
-        col.button(question, on_click=suggestion_clicked, args=[question])
-
+    with st.container():
+        st.subheader("Amorces de conversation", divider="rainbow")
+        col1, col2 = st.columns(2)
+        for i, question in enumerate(suggested_questions, start=1):
+            # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
+            col = col1 if i % 2 != 0 else col2
+            col.button(question, on_click=suggestion_clicked, args=[question])
 
     # Chat interface
     avatars = {"human": "user", "ai": "assistant"}
@@ -493,11 +488,10 @@ def main():
     for i, msg in enumerate(msgs.messages):
         st.chat_message(avatars[msg.type]).write(msg.content)
         if (msg.type == "ai") and (i > 0):
-            streamlit_feedback(feedback_type = "thumbs",
+            streamlit_feedback(feedback_type="thumbs",
                                optional_text_label="Cette réponse vous convient-elle?",
                                key=f"feedback_{i}",
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
-
 
     # Handle suggested questions
     if "user_suggested_question" in st.session_state:
@@ -505,7 +499,7 @@ def main():
         st.session_state.pop("user_suggested_question")  # Clear the session state
         handle_assistant_response(user_query)
 
-    #Handle user queries
+    # Handle user queries
     if user_query := st.chat_input(placeholder="Ask me anything!"):
         handle_assistant_response(user_query)
 

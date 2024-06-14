@@ -16,7 +16,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import traceable
 
 from utils.constants import Metadata
-from utils.utilsdoc import get_store
+from utils.utilsdoc import get_store, extract_unique_name
 from utils.config_loader import load_config
 from streamlit_feedback import streamlit_feedback
 import logging
@@ -171,6 +171,11 @@ retriever = configure_retriever()
 
 st.session_state.store = {}
 
+unique_topic_names = extract_unique_name(collection_name, Metadata.TOPIC.value)
+topics = ', '.join(sorted(list(unique_topic_names)))
+if not unique_topic_names:
+    topics = None
+
 #
 # L     L     MM     MM
 # L     L     M M   M M
@@ -190,8 +195,11 @@ contextualize_q_system_prompt = """Given a chat history and the latest user ques
 which might reference context in the chat history, formulate a standalone question \
 which can be understood without the chat history. Do NOT answer the question, \
 just reformulate it if needed and otherwise return it as is.
-Maintain the same language as the user question.
-"""
+User question should be on {topic}.
+Do not explain your logic, just output the reformulated question.
+
+Reformulated Question:"""
+
 contextualize_q_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", contextualize_q_system_prompt),
@@ -204,7 +212,7 @@ history_aware_retriever = create_history_aware_retriever(
 )
 
 ### Answer question ###
-qa_system_prompt = """You are an assistant for question-answering tasks. \
+qa_system_prompt = """You are an assistant for question-answering tasks on {topics}. \
 Use the following pieces of retrieved context to answer the question. \
 If you don't know the answer, just say that you don't know. \
 Use three sentences maximum and keep the answer concise.\
@@ -231,7 +239,6 @@ conversational_rag_chain = RunnableWithMessageHistory(
     history_messages_key="chat_history",
     output_messages_key="answer",
 )
-
 
 # llm_stream = load_model(streaming=True)
 #
@@ -299,7 +306,7 @@ def handle_assistant_response(user_query):
         # NEW API OF LANGCHAIN
         # PROMPT NEED TO BE CHANGED
         response = conversational_rag_chain.invoke(
-            input={"input": user_query},
+            input={"input": user_query, "topics": topics},
             config={
                 "configurable": {"session_id": sessionid},
                 "callbacks": [
