@@ -5,6 +5,10 @@ from json import JSONDecodeError
 
 import streamlit as st
 from langchain.agents import create_react_agent, AgentExecutor, create_structured_chat_agent
+from langchain.chains.query_constructor.base import get_query_constructor_prompt, StructuredQueryOutputParser
+from langchain.chains.query_constructor.schema import AttributeInfo
+from langchain.retrievers import SelfQueryRetriever
+from langchain_community.query_constructors.chroma import ChromaTranslator
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.tools import ToolException, Tool, tool
 from llama_index.core import StorageContext, load_index_from_storage
@@ -23,6 +27,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import traceable
 
+import utils.constants
 from utils.constants import Metadata
 from utils.utilsdoc import get_store, extract_unique_name
 from utils.config_loader import load_config
@@ -182,7 +187,65 @@ st.set_page_config(page_title="Chat with Documents", page_icon="🦜")
 # Configure the retriever with PDF files
 retriever = configure_retriever()
 
-# Setup memory for contextual conversation
+unique_topic_names = extract_unique_name(collection_name, Metadata.TOPIC.value)
+topics = ', '.join(sorted(['\''+topic+'\'' for topic in unique_topic_names]))
+if not unique_topic_names:
+    topics = "'None'"
+
+unique_file_names = extract_unique_name(collection_name, Metadata.FILENAME.value)
+filenames = ', '.join(sorted(['\''+filename+'\'' for filename in unique_file_names]))
+if not unique_file_names:
+    filenames = "'None'"
+
+chunk_type_desc = [e.value for e in utils.constants.ChunkType]
+chunk_type_desc = ", ".join(chunk_type_desc) if len(chunk_type_desc) > 1 else chunk_type_desc[0]
+
+
+metadata_field_info = [
+    AttributeInfo(
+        name=f"{Metadata.TOPIC.value}",
+        description=f"The topic covered by the knowledge. One of [{topics}]",
+        type="string",
+    ),
+    AttributeInfo(
+        name=f"{Metadata.FILENAME.value}",
+        description=f"The filename of the document containing the knowledge. One of [{filenames}]",
+        type="string",
+    ),
+    AttributeInfo(
+        name=f"{Metadata.CHUNK_TYPE.value}",
+        description=f"The element type of knowledge. One of [{chunk_type_desc}]",
+        type="string",
+    ),
+    AttributeInfo(
+        name=f"{Metadata.PAGE.value}",
+        description="The page of the knowledge within original document.",
+        type="integer"
+    ),
+]
+
+vectorstore = get_store()
+self_query_llm = load_model(streaming=False, temperature=0)
+document_content_description = f"Knowledge base on {topics}"
+self_query_retriever = SelfQueryRetriever.from_llm(
+    self_query_llm,
+    vectorstore,
+    document_content_description,
+    metadata_field_info,
+)
+#
+# prompt = get_query_constructor_prompt(
+#     document_content_description,
+#     metadata_field_info,
+# )
+# output_parser = StructuredQueryOutputParser.from_components()
+# query_constructor = prompt | self_query_llm | output_parser
+#
+# self_query_retriever = SelfQueryRetriever(
+#     query_constructor=query_constructor,
+#     vectorstore=vectorstore,
+#     structured_query_translator=ChromaTranslator(),
+# )
 
 st.session_state.store = {}
 
@@ -198,11 +261,6 @@ doc_summary_index = load_index_from_storage(storage_context)
 summary_query_engine = doc_summary_index.as_query_engine(
     response_mode=ResponseMode.TREE_SUMMARIZE, use_async=True
 )
-
-unique_topic_names = extract_unique_name(collection_name, Metadata.TOPIC.value)
-topics = ', '.join(sorted(list(unique_topic_names)))
-if not unique_topic_names:
-    topics = None
 
 
 def _handle_error(error: ToolException) -> str:
@@ -228,8 +286,11 @@ memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, r
 ### Contextualize question ###
 contextualize_q_system_prompt = """Given a chat history and the latest user question \
 which might reference context in the chat history, formulate a standalone question \
-which can be understood without the chat history. Do NOT answer the question, \
-just reformulate it if needed and otherwise return it as is.
+which can be understood without the chat history. \
+If the question has specific rules on the content of knowledge like \
+page number, file name or element type like Image, ensure to keep \
+all these informations on the reformulated question.
+Do NOT answer the question, just reformulate it if needed and otherwise return it as is.
 Maintain the same language as the user question.
 Do not explain your logic, just output the reformulated question.
 
@@ -243,7 +304,10 @@ contextualize_q_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 history_aware_retriever = create_history_aware_retriever(
-    llm_rag, retriever, contextualize_q_prompt
+    llm_rag,
+    #retriever,
+    self_query_retriever,
+    contextualize_q_prompt
 )
 
 ### Answer question ###
@@ -277,6 +341,15 @@ memory_rag_chain = RunnableWithMessageHistory(
 )
 
 
+# @tool
+# def self_query(query: str) -> str:
+#     """Useful IF you have a query that needs to have access to a specific content of
+#      knowledge like page, file or element type.
+#     DO NOT use if you have specific question.
+#     DO NOT USE MULTI-ARGUMENTS INPUT."""
+#     return self_query_retriever.invoke(query)
+
+
 @tool
 def knowledge_summary(question: str) -> str:
     """Useful IF you need to answer a general question or need to have a holistic summary on knowledge.
@@ -288,6 +361,8 @@ def knowledge_summary(question: str) -> str:
 @tool
 def question_answerer(question: str) -> str:
     """Useful when you need to answer a specif question on knowledge.
+    or IF you have a query that requires to have access to a specific part of
+     knowledge like page, file or element type.
     DO NOT USE MULTI-ARGUMENTS INPUT."""
     # Retrieving the streamlit context to bind it to call back
     # in order to write in another thread context
@@ -331,7 +406,7 @@ agent_executor = AgentExecutor(
     agent=agent,
     tools=lc_tools,
     handle_parsing_errors=
-    "Check your output and make sure it includes an action that conforms to the exepected format (json blob)!"
+    "Check your output and make sure it includes an action that conforms to the expected format (json blob)!"
     " Do not output an action and a final answer at the same time."
 )
 

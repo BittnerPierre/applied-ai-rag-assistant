@@ -65,6 +65,8 @@ langchain-aws = ">=0.1.4"
 opensearch-py = ">=2.6.0"
 requests-aws4auth = ">=1.2.3"
 
+lark = ">=1.1.9"
+
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
 mypy = "^1.4.1"
