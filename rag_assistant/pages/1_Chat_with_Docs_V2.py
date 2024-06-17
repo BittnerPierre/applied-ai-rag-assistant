@@ -74,44 +74,6 @@ summary_index_folder = f"{LLAMA_INDEX_ROOT_DIR}/{SUMMARY_INDEX_DIR}"
 
 sessionid = "abc123"
 
-__template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
-    The questionnaire is designed to cover various pillars essential for cloud architecture,
-     including security, compliance, availability, access methods, data storage, processing, performance efficiency,
-      cost optimization, and operational excellence.
-      
-    You will assist user to answer to the questionnaire solely based on the information that will be provided to you.
-
-    For each question, you are to follow the "Chain of Thought" process. This means that for each user's response, you will:
-
-    - Acknowledge the response,
-    - Reflect on the implications of the choice,
-    - Identify any risks associated with the selected option,
-    - Suggest best practices and architecture patterns that align with the user’s selection,
-    - Guide them to the next relevant question based on their previous answers.
-
-    Your objective is to ensure that by the end of the questionnaire, the user has a clear understanding of the appropriate architecture and services needed for a secure, efficient, and compliant cloud deployment. Remember to provide answers in a simple, interactive, and concise manner.
-
-    Process:
-
-    1. Begin by introducing the purpose of the assessment and ask the first question regarding data security and compliance.
-    2. Based on the response, discuss the chosen level of data security, note any specific risks or requirements, and recommend corresponding cloud services or architectural patterns.
-    3. Proceed to the next question on application availability. Once the user responds, reflect on the suitability of their choice for their application's criticality and suggest availability configurations.
-    4. For questions on access methods and data storage, provide insights on securing application access points or optimizing data storage solutions.
-    5. When discussing performance efficiency, highlight the trade-offs between performance and cost, and advise on scaling strategies.
-    6. In the cost optimization section, engage in a brief discussion on budgetary constraints and recommend cost-effective cloud resource management.
-    7. Conclude with operational excellence, focusing on automation and monitoring, and propose solutions for continuous integration and deployment.
-    8. After the final question, summarize the user's choices and their implications for cloud architecture.
-    9. Offer a brief closing statement that reassures the user of the assistance provided and the readiness of their cloud deployment strategy.
-
-    Keep the interactions focused on architectural decisions without diverting to other unrelated topics.
-    Be concise in your answer with a professional tone. 
-    You are not to perform tasks outside the scope of the questionnaire, 
-    such as executing code or accessing external databases. 
-    Your guidance should be solely based on the information provided by the user in the context of the questionnaire.
-    
-    To start the conversation, introduce yourself and give 3 domains in which you can assist user."""
-
-
 class StreamHandler(BaseCallbackHandler):
     def __init__(self, container: st.delta_generator.DeltaGenerator, ctx, initial_text: str = ""):
         self.container = container
@@ -275,7 +237,7 @@ def _handle_error(error: ToolException) -> str:
 
 
 # Setup LLM and QA chain
-llm_rag = load_model(temperature=0.1, streaming=False)
+llm_rag = load_model(temperature=0.1, streaming=True)
 llm = load_model(streaming=True)
 
 # llm.bind_tools(lc_tools)
@@ -284,17 +246,19 @@ msgs = get_session_history(sessionid)
 memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, return_messages=True)
 
 ### Contextualize question ###
-contextualize_q_system_prompt = """Given a chat history and the latest user question \
-which might reference context in the chat history, formulate a standalone question \
-which can be understood without the chat history. \
-If the question has specific rules on the content of knowledge like \
+contextualize_q_system_prompt = """Your goal is to formulate a standalone question \
+that can be understood without the conversation history.  \
+DO NOT answer the question.  \
+Given a chat history and the last user question \
+which might reference the chat history, reformulate the user question if needed, \
+otherwise return it as is. \
+If the question has specific directives on the content of knowledge like \
 page number, file name or element type like Image, ensure to keep \
-all these informations on the reformulated question.
-Do NOT answer the question, just reformulate it if needed and otherwise return it as is.
-Maintain the same language as the user question.
-Do not explain your logic, just output the reformulated question.
-
-Reformulated Question:"""
+all these informations in the reformulated question.
+Maintain the same language of the user question.
+DO NOT explain your logic, just output the standalone question.
+Check that your final answer is a new question that is related to user question.
+"""
 
 contextualize_q_prompt = ChatPromptTemplate.from_messages(
     [
@@ -315,7 +279,7 @@ qa_system_prompt = """You are an assistant for question-answering tasks on {topi
 Use the following pieces of retrieved context to answer the question. \
 If you don't know the answer, just say that you don't know. \
 If the question is not on {topics}, don't answer it. \
-Use three sentences maximum and keep the answer concise.\
+Keep the answer concise except if the user ask specifically for a detailed answer.\
 Maintain the same writing style as used in the context.\
 Keep the same language as the follow up question.
 
