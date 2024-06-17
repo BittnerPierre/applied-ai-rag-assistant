@@ -561,16 +561,25 @@ def suggestion_clicked(question):
     logger.warning(f"User clicked on suggested question: {question}")
     print(f"User clicked on suggested question: {question}")
     session_id = get_session_id()
+<<<<<<< HEAD
     title = generate_session_title(question)
     st.session_state.chat_titles[session_id] = title
     print(st.session_state.chat_titles)
+=======
+    if session_id not in st.session_state.chat_titles:
+        title = generate_session_title(question)
+        st.session_state.chat_titles[session_id] = title
+>>>>>>> 5d49bb9 (deletion working on the chat history)
     st.session_state.user_suggested_question = question
 
 def main():
     st.title("Chat with Documents")
     st.sidebar.title("Chat Sessions")
+    if "session_id" not in st.session_state:
+         session_id = get_session_id()
+    else:
+        session_id = st.session_state.session_id
 
-    session_id = get_session_id()
     chat_sessions = list(st.session_state.get("chat_histories", {}).keys())
     print(f"Chat sessions {chat_sessions}")
     print(f"Chat Histories {st.session_state.get('chat_histories', {})}")
@@ -580,31 +589,37 @@ def main():
         st.session_state.chat_titles = {}
 
     if st.sidebar.button("New Chat"):
-        st.session_state.new_chat = True
         session_id = str(datetime.datetime.now())
         st.session_state.session_id = session_id
         st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+<<<<<<< HEAD
         st.session_state.chat_titles[session_id] = session_id
         st.experimental_rerun()
 
     if "new_chat" in st.session_state and st.session_state.new_chat:
         st.session_state.new_chat = False  # Reset new_chat flag
         st.experimental_rerun()
+=======
+        st.rerun()
+>>>>>>> 5d49bb9 (deletion working on the chat history)
 
     selected_session = session_id
+    session_deleted = False
+
     for chat_session in chat_sessions:
         title = st.session_state.chat_titles.get(chat_session, chat_session)
         col1, col2 = st.sidebar.columns([0.8, 0.2])
         with col1:
-            if st.button(title):
+            if st.button(title, key=f"select_{chat_session}"):
                 selected_session = chat_session
                 st.session_state.session_id = selected_session
-                st.experimental_rerun()
+                st.rerun()
         with col2:
             if st.button("🚮", key=f"delete_{chat_session}"):
                 print(f"Session state B4 : {st.session_state}")
                 del st.session_state.chat_histories[chat_session]
                 del st.session_state.chat_titles[chat_session]
+<<<<<<< HEAD
                 print(f"Session state After : {st.session_state}")
                 st.session_state.new_chat = True
                 session_id = str(datetime.datetime.now())
@@ -612,30 +627,48 @@ def main():
                 st.session_state.chat_titles[session_id] = session_id
                 st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
                 st.experimental_rerun()
+=======
+                session_deleted = True
+                if selected_session == chat_session:
+                    selected_session = None
+                break
+>>>>>>> 5d49bb9 (deletion working on the chat history)
 
-    if selected_session!= session_id:
+    if session_deleted:
+        if chat_sessions:
+            chat_sessions.remove(chat_session)
+            selected_session = chat_sessions[0] if chat_sessions else None
+        st.session_state.session_id = selected_session
+        st.rerun()
+
+    if selected_session != session_id:
         session_id = selected_session
         st.session_state.session_id = session_id
 
-    msgs = get_chat_history(session_id)
+    if session_id:
+        msgs = get_chat_history(session_id)
+    else:
+        msgs = None
 
-    if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
-        msgs.clear()
+    if msgs:
+        if len(msgs.messages) == 0:
+            msgs.clear()
 
-    col1, col2 = st.columns(2)
-    for i, question in enumerate(suggested_questions, start=1):
-        col = col1 if i % 2!= 0 else col2
-        col.button(question, on_click=suggestion_clicked, args=[question])
+        col1, col2 = st.columns(2)
+        for i, question in enumerate(suggested_questions, start=1):
+            col = col1 if i % 2 != 0 else col2
+            col.button(question, on_click=suggestion_clicked, args=[question])
 
-    avatars = {"human": "user", "ai": "assistant"}
-    for i, msg in enumerate(msgs.messages):
-        st.chat_message(avatars[msg.type]).write(msg.content)
-        if msg.type == "ai" and i > 0:
-            streamlit_feedback(feedback_type="thumbs",
-                               optional_text_label="Cette réponse vous convient-elle?",
-                               key=f"feedback_{i}",
-                               on_submit=lambda x: _submit_feedback(x, emoji="👍"))
+        avatars = {"human": "user", "ai": "assistant"}
+        for i, msg in enumerate(msgs.messages):
+            st.chat_message(avatars[msg.type]).write(msg.content)
+            if msg.type == "ai" and i > 0:
+                streamlit_feedback(feedback_type="thumbs",
+                                optional_text_label="Cette réponse vous convient-elle?",
+                                key=f"feedback_{i}",
+                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
+<<<<<<< HEAD
     if "user_suggested_question" in st.session_state:
         user_query = st.session_state.user_suggested_question
         st.session_state.pop("user_suggested_question")
@@ -646,6 +679,17 @@ def main():
         print(f"Title: {title}")
         st.session_state.chat_titles[session_id] = title
         handle_assistant_response(user_query)
+=======
+        if "user_suggested_question" in st.session_state:
+            user_query = st.session_state.user_suggested_question
+            st.session_state.pop("user_suggested_question")
+            handle_assistant_response(user_query)
+>>>>>>> 5d49bb9 (deletion working on the chat history)
 
+        if user_query := st.chat_input(placeholder="Ask me anything!"):
+            if session_id not in st.session_state.chat_titles:
+                title = generate_session_title(user_query)
+                st.session_state.chat_titles[session_id] = title
+            handle_assistant_response(user_query)
 if __name__ == "__main__":
     main()
