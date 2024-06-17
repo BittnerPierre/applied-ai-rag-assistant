@@ -247,17 +247,18 @@ memory = ConversationBufferMemory(memory_key="chat_history", chat_memory=msgs, r
 
 ### Contextualize question ###
 contextualize_q_system_prompt = """Your goal is to formulate a standalone question \
-that can be understood without the conversation history.  \
+that can be understood without conversation history.  \
 DO NOT answer the question.  \
 Given a chat history and the last user question \
 which might reference the chat history, reformulate the user question if needed, \
 otherwise return it as is. \
-If the question has specific directives on the content of knowledge like \
-page number, file name or element type like Image, ensure to keep \
-all these informations in the reformulated question.
+If the question has specific directives on the content like \
+page number, file name or element type like Image, you MUST keep \
+all these directives in the reformulated question.
 Maintain the same language of the user question.
 DO NOT explain your logic, just output the standalone question.
 Check that your final answer is a new question that is related to user question.
+Check that the final answer has all the specific directives given in the last user question.
 """
 
 contextualize_q_prompt = ChatPromptTemplate.from_messages(
