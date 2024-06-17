@@ -85,6 +85,11 @@ def main():
         if st.button("Delete File data"):
             delete_documents_by_type_and_name(collection_name=collection_name, type=Metadata.FILENAME.value, name=file_name_to_delete)
 
+        chunk_type_to_delete = st.selectbox("Select Chunk Type", [e.value for e in ChunkType], index=None)
+        if st.button("Delete Chunk Type"):
+            delete_documents_by_type_and_name(collection_name=collection_name, type=Metadata.CHUNK_TYPE.value,
+                                              name=chunk_type_to_delete)
+
     with col2:
         topic_name_to_delete = st.selectbox("Select Topic", unique_topic_names, index=None)
         if st.button("Delete Topic Data"):

@@ -67,7 +67,7 @@ def get_metadatas(collection_name : str):
 
 
 def delete_documents_by_type_and_name(collection_name: str, type: str, name: str):
-    if type not in [Metadata.FILENAME.value, Metadata.TOPIC.value]:
+    if type not in [Metadata.FILENAME.value, Metadata.TOPIC.value, Metadata.CHUNK_TYPE.value]:
         raise ValueError(f"Type {type} not supported for deletion")
 
     store = get_store(collection_name=collection_name)
@@ -339,10 +339,10 @@ def clean_text(s):
 
 
 def _chunk_texts(texts):
-    character_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+    character_splitter = RecursiveCharacterTextSplitter(
         separators=["\n\n", "\n", ". ", " ", ""],
         chunk_size=256,
-        chunk_overlap=32
+        chunk_overlap=16
     )
     character_split_texts = character_splitter.split_text(texts)
 

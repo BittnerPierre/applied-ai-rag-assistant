@@ -264,7 +264,10 @@ contextualize_q_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", contextualize_q_system_prompt),
         MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
+        ("human", "Reformulate the user question."
+                  "User Question '''{input}'''"
+                  ""
+                  "Reformulated question:"),
     ]
 )
 history_aware_retriever = create_history_aware_retriever(
@@ -435,7 +438,6 @@ def conversation_starters():
 
     chain = cs_prompt | model | output_parser
     response = chain.invoke({"topics": topics, "summary": context})
-    print(response)
 
     response_list = [line for line in response.split("\n") if line.strip() != '']
     if len(response_list) > 4:
