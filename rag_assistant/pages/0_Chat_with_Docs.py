@@ -315,7 +315,6 @@
 #     main()
 
 
-
 import os
 import threading
 import streamlit as st
@@ -384,13 +383,12 @@ def generate_session_title(query):
     prompt = f"Créez une phrase concise de 3 à 5 mots comme en-tête de la requête suivante, en respectant strictement la limite de 3 à 5 mots et en évitant d'utiliser le mot 'title': {query}"
     llm = load_model()
     response = llm.invoke(prompt)
-    print(f"Response du LLM : {response}")
     
     # Ensure the response is a string
     if isinstance(response, str):
-        return response.replace('"', '').strip()
+        return response.strip()
     elif hasattr(response, 'content'):  # For objects like AIMessage
-        return response.content.replace('"', '').strip()
+        return response.content.strip()
     else:
         raise ValueError("Unexpected response type from LLM")
 
@@ -558,18 +556,10 @@ def handle_assistant_response(user_query):
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
 
 def suggestion_clicked(question):
-    logger.warning(f"User clicked on suggested question: {question}")
-    print(f"User clicked on suggested question: {question}")
     session_id = get_session_id()
-<<<<<<< HEAD
-    title = generate_session_title(question)
-    st.session_state.chat_titles[session_id] = title
-    print(st.session_state.chat_titles)
-=======
     if session_id not in st.session_state.chat_titles:
         title = generate_session_title(question)
         st.session_state.chat_titles[session_id] = title
->>>>>>> 5d49bb9 (deletion working on the chat history)
     st.session_state.user_suggested_question = question
 
 def main():
@@ -581,9 +571,6 @@ def main():
         session_id = st.session_state.session_id
 
     chat_sessions = list(st.session_state.get("chat_histories", {}).keys())
-    print(f"Chat sessions {chat_sessions}")
-    print(f"Chat Histories {st.session_state.get('chat_histories', {})}")
-    print(f"Chat Titles {st.session_state.get('chat_titles', {})}")
 
     if "chat_titles" not in st.session_state:
         st.session_state.chat_titles = {}
@@ -592,16 +579,7 @@ def main():
         session_id = str(datetime.datetime.now())
         st.session_state.session_id = session_id
         st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
-<<<<<<< HEAD
-        st.session_state.chat_titles[session_id] = session_id
-        st.experimental_rerun()
-
-    if "new_chat" in st.session_state and st.session_state.new_chat:
-        st.session_state.new_chat = False  # Reset new_chat flag
-        st.experimental_rerun()
-=======
         st.rerun()
->>>>>>> 5d49bb9 (deletion working on the chat history)
 
     selected_session = session_id
     session_deleted = False
@@ -616,23 +594,12 @@ def main():
                 st.rerun()
         with col2:
             if st.button("🚮", key=f"delete_{chat_session}"):
-                print(f"Session state B4 : {st.session_state}")
                 del st.session_state.chat_histories[chat_session]
                 del st.session_state.chat_titles[chat_session]
-<<<<<<< HEAD
-                print(f"Session state After : {st.session_state}")
-                st.session_state.new_chat = True
-                session_id = str(datetime.datetime.now())
-                st.session_state.session_id = session_id
-                st.session_state.chat_titles[session_id] = session_id
-                st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
-                st.experimental_rerun()
-=======
                 session_deleted = True
                 if selected_session == chat_session:
                     selected_session = None
                 break
->>>>>>> 5d49bb9 (deletion working on the chat history)
 
     if session_deleted:
         if chat_sessions:
@@ -668,23 +635,10 @@ def main():
                                 key=f"feedback_{i}",
                                 on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
-<<<<<<< HEAD
-    if "user_suggested_question" in st.session_state:
-        user_query = st.session_state.user_suggested_question
-        st.session_state.pop("user_suggested_question")
-        handle_assistant_response(user_query)
-
-    if user_query := st.chat_input(placeholder="Ask me anything!"):
-        title = generate_session_title(user_query)
-        print(f"Title: {title}")
-        st.session_state.chat_titles[session_id] = title
-        handle_assistant_response(user_query)
-=======
         if "user_suggested_question" in st.session_state:
             user_query = st.session_state.user_suggested_question
             st.session_state.pop("user_suggested_question")
             handle_assistant_response(user_query)
->>>>>>> 5d49bb9 (deletion working on the chat history)
 
         if user_query := st.chat_input(placeholder="Ask me anything!"):
             if session_id not in st.session_state.chat_titles:
