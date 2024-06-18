@@ -566,19 +566,23 @@ def main():
     st.title("Chat with Documents")
     st.sidebar.title("Chat Sessions")
     if "session_id" not in st.session_state:
-         session_id = get_session_id()
+        session_id = get_session_id()
     else:
         session_id = st.session_state.session_id
 
-    chat_sessions = list(st.session_state.get("chat_histories", {}).keys())
+    if "chat_histories" not in st.session_state:
+        st.session_state.chat_histories = {}
 
     if "chat_titles" not in st.session_state:
         st.session_state.chat_titles = {}
+
+    chat_sessions = list(st.session_state.chat_histories.keys())
 
     if st.sidebar.button("New Chat"):
         session_id = str(datetime.datetime.now())
         st.session_state.session_id = session_id
         st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
+        st.session_state.chat_titles[session_id] = session_id  # Use the session_id as a temporary title
         st.rerun()
 
     selected_session = session_id
@@ -594,17 +598,18 @@ def main():
                 st.rerun()
         with col2:
             if st.button("🚮", key=f"delete_{chat_session}"):
-                del st.session_state.chat_histories[chat_session]
-                del st.session_state.chat_titles[chat_session]
+                if chat_session in st.session_state.chat_histories:
+                    del st.session_state.chat_histories[chat_session]
+                if chat_session in st.session_state.chat_titles:
+                    del st.session_state.chat_titles[chat_session]
                 session_deleted = True
                 if selected_session == chat_session:
                     selected_session = None
                 break
 
     if session_deleted:
-        if chat_sessions:
-            chat_sessions.remove(chat_session)
-            selected_session = chat_sessions[0] if chat_sessions else None
+        chat_sessions = list(st.session_state.chat_histories.keys())
+        selected_session = chat_sessions[0] if chat_sessions else None
         st.session_state.session_id = selected_session
         st.rerun()
 
@@ -631,9 +636,9 @@ def main():
             st.chat_message(avatars[msg.type]).write(msg.content)
             if msg.type == "ai" and i > 0:
                 streamlit_feedback(feedback_type="thumbs",
-                                optional_text_label="Cette réponse vous convient-elle?",
-                                key=f"feedback_{i}",
-                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
+                                   optional_text_label="Cette réponse vous convient-elle?",
+                                   key=f"feedback_{i}",
+                                   on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
         if "user_suggested_question" in st.session_state:
             user_query = st.session_state.user_suggested_question
@@ -641,9 +646,10 @@ def main():
             handle_assistant_response(user_query)
 
         if user_query := st.chat_input(placeholder="Ask me anything!"):
-            if session_id not in st.session_state.chat_titles:
+            if session_id not in st.session_state.chat_titles or st.session_state.chat_titles[session_id] == session_id:
                 title = generate_session_title(user_query)
                 st.session_state.chat_titles[session_id] = title
             handle_assistant_response(user_query)
+
 if __name__ == "__main__":
     main()
