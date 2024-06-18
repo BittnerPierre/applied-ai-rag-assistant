@@ -208,3 +208,5 @@ def load_llamaindex_embeddings(model_name: str = None) -> BaseEmbedding:
         raise NotImplementedError(f"Model {model_name} unknown.")
 
     return embeddings
+
+

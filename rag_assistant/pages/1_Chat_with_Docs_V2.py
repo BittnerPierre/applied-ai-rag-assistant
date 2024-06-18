@@ -61,6 +61,8 @@ logger.addHandler(handler)
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
 upload_directory = config['FILE_MANAGEMENT']['UPLOAD_DIRECTORY']
+top_k = int(config['LANGCHAIN']['SEARCH_TOP_K'])
+search_type = config['LANGCHAIN']['SEARCH_TYPE']
 
 
 
@@ -122,7 +124,8 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
 def configure_retriever():
     vectordb = get_store()
 
-    retriever = vectordb.as_retriever(search_type="similarity", search_kwargs={"k": 5})  # , "fetch_k": 4
+    retriever = vectordb.as_retriever(search_type=search_type,
+                                      search_kwargs={"k": top_k})
 
     return retriever
 
@@ -186,6 +189,7 @@ self_query_retriever = SelfQueryRetriever.from_llm(
     vectorstore,
     document_content_description,
     metadata_field_info,
+    search_kwargs={'k': top_k}
 )
 #
 # prompt = get_query_constructor_prompt(

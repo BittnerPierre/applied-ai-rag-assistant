@@ -74,7 +74,6 @@ def get_conversation_starters(topics: str):
 
 suggested_questions_examples = [
     "Comment sécuriser les données sensibles ?",
-    "Quelles stratégies pour la haute disponibilité ?",
     "Comment assurez l'efficacité des performances ?",
     # API
     "Quels sont les mécanismes d'authentification API ?",

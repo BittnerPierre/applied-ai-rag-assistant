@@ -10,8 +10,8 @@ from llama_index.core.schema import Document as LIDocument
 
 from utils.constants import DocumentType, SupportedFileType, Metadata
 from utils.config_loader import load_config
-from utils.utilsdoc import load_doc, load_store
-from utils.utilsllm import load_llamaindex_model, load_llamaindex_embeddings
+from utils.utilsdoc import load_doc, load_store, get_child_chunk_size
+from utils.utilsllm import load_llamaindex_model
 
 from utils.utilsvision import load_image
 
@@ -103,7 +103,7 @@ def build_llama_index(docs: list[LIDocument]) -> BaseIndex:
     #     llm=llm_prepare
     # )
 
-    splitter = SentenceSplitter(chunk_size=1024)
+    splitter = SentenceSplitter(chunk_size=get_child_chunk_size())
     response_synthesizer = get_response_synthesizer(
         response_mode=ResponseMode.TREE_SUMMARIZE, use_async=True
     )

@@ -29,6 +29,15 @@ from .config_loader import load_config
 
 
 config = load_config()
+child_chunk_size = int(config['KNOWLEDGE']['CHILD_CHUNK_SIZE'])
+child_chunk_overlap = int(config['KNOWLEDGE']['CHILD_CHUNK_OVERLAP'])
+
+parent_chunk_size = int(config['KNOWLEDGE']['PARENT_CHUNK_SIZE'])
+parent_chunk_overlap = int(config['KNOWLEDGE']['PARENT_CHUNK_OVERLAP'])
+
+
+def get_child_chunk_size() -> int:
+    return child_chunk_size
 
 
 def extract_unique_name(collection_name : str, key : str):
@@ -93,54 +102,76 @@ def delete_documents_by_type_and_name(collection_name: str, type: str, name: str
         collection = store._collection
         collection.delete(where={f"{type}": {"$eq": f"{name}"}})
 
-def split_documents(documents: list[Document]):
+
+def split_documents(documents: list[Document]) -> list[Document]:
     # Initialize text splitter
-    text_splitter = TokenTextSplitter(chunk_size=1024, chunk_overlap=24)
+    text_splitter = TokenTextSplitter(
+        chunk_size=parent_chunk_size,
+        chunk_overlap=parent_chunk_overlap)
     chunks = text_splitter.split_documents(documents)
 
     return chunks
 
 
-def process_txt_folder(txt_input_folder_name, txt_folder_name):
-    # Initialize tokenizer
-    # tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+def _chunk_texts(texts: str) -> list[str]:
+    character_splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\n", "\n", ". ", " ", ""],
+        chunk_size=child_chunk_size,
+        chunk_overlap=child_chunk_overlap
+    )
+    character_split_texts = character_splitter.split_text(texts)
 
-    data = []
-    sources = []
+    # token_splitter = SentenceTransformersTokenTextSplitter(chunk_overlap=0, tokens_per_chunk=256)
 
-    text_splitter = TokenTextSplitter(chunk_size=512, chunk_overlap=24)
+    # token_split_texts = []
+    # for text in character_split_texts:
+    #     token_split_texts += token_splitter.split_text(text)
 
-    # Iterate over all files in the folder
-    for filename in os.listdir(txt_input_folder_name):
-        # Only process PDF files
-        if filename.endswith(".txt"):
-            # Full path to the file
-            filepath = os.path.join(txt_input_folder_name, filename)
+    return character_split_texts
 
-            # Write the extracted text to a .txt file
-            txt_filename = filename
-            txt_filepath = os.path.join(txt_folder_name, txt_filename)
-            path = Path(txt_filepath)
-            if not path.is_file():
-                print("Storing text:", txt_filename)
-                shutil.copy(filepath, txt_filepath)
 
-            # Read the .txt file
-            with open(txt_filepath, 'r') as f:
-                data.append(f.read())
-            sources.append(filename)
-
-        # Here we split the documents, as needed, into smaller chunks.
-        # We do this due to the context limits of the LLMs.
-        docs = []
-        metadatas = []
-        for i, d in enumerate(data):
-            splits = text_splitter.create_documents(d)
-            docs.extend(splits)
-            metadatas.extend([{"source": sources[i]}] * len(splits))
-
-    # Return the array of chunks
-    return docs, metadatas
+# def process_txt_folder(txt_input_folder_name, txt_folder_name):
+#     # Initialize tokenizer
+#     # tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+#
+#     data = []
+#     sources = []
+#
+#     text_splitter = TokenTextSplitter(
+#         chunk_size=chunk_size,
+#         chunk_overlap=chunk_overlap)
+#
+#     # Iterate over all files in the folder
+#     for filename in os.listdir(txt_input_folder_name):
+#         # Only process PDF files
+#         if filename.endswith(".txt"):
+#             # Full path to the file
+#             filepath = os.path.join(txt_input_folder_name, filename)
+#
+#             # Write the extracted text to a .txt file
+#             txt_filename = filename
+#             txt_filepath = os.path.join(txt_folder_name, txt_filename)
+#             path = Path(txt_filepath)
+#             if not path.is_file():
+#                 print("Storing text:", txt_filename)
+#                 shutil.copy(filepath, txt_filepath)
+#
+#             # Read the .txt file
+#             with open(txt_filepath, 'r') as f:
+#                 data.append(f.read())
+#             sources.append(filename)
+#
+#         # Here we split the documents, as needed, into smaller chunks.
+#         # We do this due to the context limits of the LLMs.
+#         docs = []
+#         metadatas = []
+#         for i, d in enumerate(data):
+#             splits = text_splitter.create_documents(d)
+#             docs.extend(splits)
+#             metadatas.extend([{"source": sources[i]}] * len(splits))
+#
+#     # Return the array of chunks
+#     return docs, metadatas
 
 
 def empty_store(collection_name="Default") -> None:
@@ -343,23 +374,6 @@ def clean_text(s):
     for regex, replacement in regex_replacements:
         s = regex.sub(replacement, s)
     return s
-
-
-def _chunk_texts(texts):
-    character_splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n", "\n", ". ", " ", ""],
-        chunk_size=256,
-        chunk_overlap=16
-    )
-    character_split_texts = character_splitter.split_text(texts)
-
-    # token_splitter = SentenceTransformersTokenTextSplitter(chunk_overlap=0, tokens_per_chunk=256)
-
-    # token_split_texts = []
-    # for text in character_split_texts:
-    #     token_split_texts += token_splitter.split_text(text)
-
-    return character_split_texts
 
 
 def load_doc(pdfs: Union[list[UploadedFile], None, UploadedFile], metadata = None) -> Optional[list[Document]]:

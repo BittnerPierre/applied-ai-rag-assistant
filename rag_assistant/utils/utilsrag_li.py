@@ -20,6 +20,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 
 import shared.llm_facade
 from .config_loader import load_config
+from .utilsdoc import child_chunk_size, text_chunk_overlap
 
 config = load_config()
 
@@ -210,8 +211,8 @@ def create_subquery_engine(
         doc_set[topic].append(doc)
         all_docs.append(doc)
 
-    Settings.chunk_size = 512
-    Settings.chunk_overlap = 64
+    Settings.chunk_size = child_chunk_size
+    Settings.chunk_overlap = text_chunk_overlap
     index_set = {}
     for topic in topics:
         # chroma_collection = db.get_or_create_collection(f"RAG_{topic}")
