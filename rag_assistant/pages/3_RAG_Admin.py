@@ -2,6 +2,8 @@ import streamlit as st
 
 import json
 
+from langchain_community.vectorstores import OpenSearchVectorSearch
+
 from utils.constants import DocumentType, ChunkType, Metadata
 from utils.utilsdoc import get_store, empty_store, extract_unique_name, get_collection_count, get_metadatas, delete_documents_by_type_and_name
 from utils.config_loader import load_config
@@ -74,7 +76,14 @@ def main():
                 else:
                     where = {}
                 store = get_store()
-                result = store.similarity_search(search, k=5, filter=where)  # , kwargs={"score_threshold": .8}
+                if isinstance(store, OpenSearchVectorSearch):
+                    result_filters = []
+                    for os_filter in filters:
+                        for key in os_filter.keys():
+                            result_filters.append({"match": {f"metadata.{key}": os_filter[key]}})
+                    result = store.similarity_search(search, k=5, boolean_filter=result_filters)
+                else:
+                    result = store.similarity_search(search, k=5, filter=where)
                 st.write(result)
             else:
                 st.write("Veuillez entrer un texte.")
