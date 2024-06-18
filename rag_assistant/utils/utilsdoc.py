@@ -22,7 +22,7 @@ import uuid
 from .constants import Metadata, ChunkType
 from requests_aws4auth import AWS4Auth
 from botocore.session import Session
-from opensearchpy import RequestsHttpConnection
+from opensearchpy import RequestsHttpConnection, exceptions
 
 from .utilsllm import load_embeddings
 from .config_loader import load_config
@@ -155,6 +155,29 @@ def empty_store(collection_name="Default") -> None:
         persistent_client = chromadb.PersistentClient(path=persist_directory)
 
         persistent_client.delete_collection(name=collection_name)
+
+    elif vectordb == "opensearch":
+        credentials = Session().get_credentials()
+        aws_region = config.get('VECTORDB', 'opensearch_aws_region')
+
+        awsauth = AWS4Auth(region=aws_region, service='es',
+                    refreshable_credentials=credentials)
+
+        opensearch_url = config.get('VECTORDB', 'opensearch_url')
+        # Index name should be lowercase
+        index_name = collection_name.lower()
+
+        db = OpenSearchVectorSearch(
+            opensearch_url=opensearch_url,
+            embedding_function=load_embeddings(),
+            http_auth=awsauth,
+            timeout=300,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+            index_name=index_name,
+        )
+        db.delete_index(index_name)
     else:
         raise NotImplementedError(f"{vectordb} empty_store not implemented yet")
 
@@ -337,7 +360,14 @@ def get_collection_count(collection_name:str = None) -> int:
     if isinstance(store, OpenSearchVectorSearch):
         client = store.client
         index_name = collection_name.lower()
-        count = client.count(index=index_name)['count']
+        try:
+            count_response = client.count(index=index_name)
+        except exceptions.NotFoundError:
+            count_response = None
+        if count_response:
+            count = count_response['count']
+        else:
+            count = 0
     elif isinstance(store, Chroma):
         collection = store._collection
         count = collection.count()
