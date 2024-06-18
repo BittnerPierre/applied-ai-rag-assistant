@@ -240,7 +240,7 @@ def handle_assistant_response(user_query):
 
 def suggestion_clicked(question):
     session_id = get_session_id()
-    if session_id not in st.session_state.chat_titles:
+    if session_id not in st.session_state.chat_titles or st.session_state.chat_titles[session_id] == session_id:
         title = generate_session_title(question)
         st.session_state.chat_titles[session_id] = title
     st.session_state.user_suggested_question = question
