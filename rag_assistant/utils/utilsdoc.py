@@ -5,7 +5,6 @@ from langchain_community.vectorstores import OpenSearchVectorSearch
 
 from langchain.text_splitter import TokenTextSplitter
 
-import shutil
 from PyPDF2 import PdfReader
 from langchain.docstore.document import Document
 from langchain_core.embeddings import Embeddings
@@ -13,8 +12,7 @@ from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 import re
-import os
-from pathlib import Path
+
 import chromadb
 from langchain_community.vectorstores import Chroma
 import uuid
@@ -38,6 +36,10 @@ parent_chunk_overlap = int(config['KNOWLEDGE']['PARENT_CHUNK_OVERLAP'])
 
 def get_child_chunk_size() -> int:
     return child_chunk_size
+
+
+def get_child_chunk_overlap() -> int:
+    return child_chunk_overlap
 
 
 def extract_unique_name(collection_name : str, key : str):

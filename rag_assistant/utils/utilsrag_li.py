@@ -16,11 +16,9 @@ from llama_index.core.postprocessor import MetadataReplacementPostProcessor, Sen
 from llama_index.core.query_engine import RetrieverQueryEngine, SubQuestionQueryEngine
 from llama_index.core.retrievers import AutoMergingRetriever
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
-from llama_index.vector_stores.chroma import ChromaVectorStore
 
-import shared.llm_facade
 from .config_loader import load_config
-from .utilsdoc import child_chunk_size, text_chunk_overlap
+from .utilsdoc import get_child_chunk_size, get_child_chunk_overlap
 
 config = load_config()
 
@@ -114,7 +112,7 @@ def get_automerging_query_engine(
 ):
     base_retriever = automerging_index.as_retriever(similarity_top_k=similarity_top_k)
     retriever = AutoMergingRetriever(
-        base_retriever, shared.llm_facade.storage_context, verbose=True
+        base_retriever, automerging_index.storage_contextstorage_context, verbose=True
     )
 
     rerank = SentenceTransformerRerank(
@@ -211,8 +209,8 @@ def create_subquery_engine(
         doc_set[topic].append(doc)
         all_docs.append(doc)
 
-    Settings.chunk_size = child_chunk_size
-    Settings.chunk_overlap = text_chunk_overlap
+    Settings.chunk_size = get_child_chunk_size()
+    Settings.chunk_overlap = get_child_chunk_overlap()
     index_set = {}
     for topic in topics:
         # chroma_collection = db.get_or_create_collection(f"RAG_{topic}")
