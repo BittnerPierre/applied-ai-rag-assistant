@@ -15,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import traceable
 
+from shared.llm_facade import get_conversation_starters
 from utils.constants import Metadata
 from utils.utilsdoc import get_store, extract_unique_name
 from utils.config_loader import load_config
@@ -120,20 +121,20 @@ class StreamHandler(BaseCallbackHandler):
 # Define the callback handler for printing retrieval information
 class PrintRetrievalHandler(BaseCallbackHandler):
     def __init__(self, container, ctx):
-        self.status = container.status("**Context Retrieval**")
+        self.status = container.status("**Récupération du Contexte**")
         self.ctx = ctx
 
     def on_retriever_start(self, serialized: dict, query: str, **kwargs):
         # adding current thread to streamlit context to be able to display streaming
         add_script_run_ctx(threading.current_thread(), self.ctx)
-        self.status.write(f"**Question:** {query}")
-        self.status.update(label=f"**Context Retrieval:** {query}")
+        self.status.write(f"**Question Reformulée:** {query}")
+        # self.status.update(label=f"**Context Retrieval:** {query}")
 
     def on_retriever_end(self, documents, **kwargs):
         for idx, doc in enumerate(documents):
             source = doc.metadata[Metadata.FILENAME.value]
             page = doc.metadata[Metadata.PAGE.value]
-            self.status.write(f"**Chunk {idx} from {source} - page {page}**")
+            self.status.write(f"**Morceau {idx} de {source} - page {page}**")
             self.status.markdown(doc.page_content)
         self.status.update(state="complete")
 
@@ -195,7 +196,7 @@ contextualize_q_system_prompt = """Given a chat history and the latest user ques
 which might reference context in the chat history, formulate a standalone question \
 which can be understood without the chat history. Do NOT answer the question, \
 just reformulate it if needed and otherwise return it as is.
-User question should be on {topic}.
+User question should be on {topics}.
 Do not explain your logic, just output the reformulated question.
 
 Reformulated Question:"""
@@ -270,12 +271,9 @@ conversational_rag_chain = RunnableWithMessageHistory(
 #     combine_docs_chain_kwargs={'prompt': qa_prompt}
 # )
 
-suggested_questions = [
-    "Comment sécuriser les données sensibles ?",
-    "Quelles stratégies pour une haute disponibilité ?",
-    "Quels sont les mécanismes d'authentification API ?",
-    "Comment assurez l'efficacité des performances ?",
-]
+
+if 'conversation_starters' not in st.session_state:
+    st.session_state['conversation_starters'] = get_conversation_starters(topics)
 
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
@@ -360,7 +358,9 @@ def main():
 
     msgs = get_session_history(sessionid)
 
-    if len(msgs.messages) == 0 or st.sidebar.button("Efface la conversation"):
+    suggested_questions = st.session_state['conversation_starters']
+
+    if len(msgs.messages) == 0 or st.sidebar.button("Effacer la conversation"):
         msgs.clear()
         #msgs.add_ai_message("Comment puis-je vous aider?")
 

@@ -18,6 +18,7 @@ from llama_index.core.retrievers import AutoMergingRetriever
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
+import shared.llm_facade
 from .config_loader import load_config
 
 config = load_config()
@@ -112,7 +113,7 @@ def get_automerging_query_engine(
 ):
     base_retriever = automerging_index.as_retriever(similarity_top_k=similarity_top_k)
     retriever = AutoMergingRetriever(
-        base_retriever, automerging_index.storage_context, verbose=True
+        base_retriever, shared.llm_facade.storage_context, verbose=True
     )
 
     rerank = SentenceTransformerRerank(

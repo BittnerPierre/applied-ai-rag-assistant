@@ -1,19 +1,12 @@
 import os
-import random
 import threading
 from json import JSONDecodeError
 
 import streamlit as st
-from langchain.agents import create_react_agent, AgentExecutor, create_structured_chat_agent
-from langchain.chains.query_constructor.base import get_query_constructor_prompt, StructuredQueryOutputParser
+from langchain.agents import AgentExecutor, create_structured_chat_agent
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers import SelfQueryRetriever
-from langchain_community.query_constructors.chroma import ChromaTranslator
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.tools import ToolException, Tool, tool
-from llama_index.core import StorageContext, load_index_from_storage
-from llama_index.core.response_synthesizers import ResponseMode
-from llama_index.core.tools import QueryEngineTool
+from langchain_core.tools import ToolException, tool
 from streamlit_pdf_viewer import pdf_viewer
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
@@ -28,6 +21,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import traceable
 
 import utils.constants
+from shared.llm_facade import get_conversation_starters, summary_query_engine
 from utils.constants import Metadata
 from utils.utilsdoc import get_store, extract_unique_name
 from utils.config_loader import load_config
@@ -68,9 +62,7 @@ config = load_config()
 collection_name = config['VECTORDB']['collection_name']
 upload_directory = config['FILE_MANAGEMENT']['UPLOAD_DIRECTORY']
 
-LLAMA_INDEX_ROOT_DIR = config["LLAMA_INDEX"]["LLAMA_INDEX_ROOT_DIR"]
-SUMMARY_INDEX_DIR = config["LLAMA_INDEX"]["SUMMARY_INDEX_DIR"]
-summary_index_folder = f"{LLAMA_INDEX_ROOT_DIR}/{SUMMARY_INDEX_DIR}"
+
 
 sessionid = "abc123"
 
@@ -100,7 +92,7 @@ class StreamHandler(BaseCallbackHandler):
 # Define the callback handler for printing retrieval information
 class PrintRetrievalHandler(BaseCallbackHandler):
     def __init__(self, container, ctx):
-        self.status = container.status("**Context Retrieval**")
+        self.status = container.status("**Récupération du Contexte**")
         self.ctx = ctx
 
     def on_retriever_start(self, serialized: dict, query: str, **kwargs):
@@ -108,14 +100,14 @@ class PrintRetrievalHandler(BaseCallbackHandler):
         add_script_run_ctx(threading.current_thread(), self.ctx)
         if 'retrievals' not in st.session_state:
             st.session_state['retrievals'] = []
-        self.status.write(f"**Question reformulée:** {query}")
+        self.status.write(f"**Question Reformulée:** {query}")
         # self.status.update(label=f"**Context Retrieval:** {query}")
 
     def on_retriever_end(self, documents, **kwargs):
         for idx, doc in enumerate(documents):
             source = doc.metadata[Metadata.FILENAME.value]
             page = doc.metadata[Metadata.PAGE.value]
-            self.status.write(f"**Chunk {idx} from {source} - page {page}**")
+            self.status.write(f"**Morceau {idx} de {source} - page {page}**")
             self.status.markdown(doc.page_content)
         st.session_state['retrievals'] = documents
         self.status.update(state="complete")
@@ -217,12 +209,6 @@ st.session_state.store = {}
 # L     L     M  M M  M
 # LLLL  LLLL  M   M   M
 #
-
-storage_context = StorageContext.from_defaults(persist_dir=summary_index_folder)
-doc_summary_index = load_index_from_storage(storage_context)
-summary_query_engine = doc_summary_index.as_query_engine(
-    response_mode=ResponseMode.TREE_SUMMARIZE, use_async=True
-)
 
 
 def _handle_error(error: ToolException) -> str:
@@ -388,73 +374,9 @@ conversational_rag_chain = RunnableWithMessageHistory(
 
 main_chain = conversational_rag_chain
 
-suggested_questions_examples = [
-    "Comment sécuriser les données sensibles ?",
-    "Quelles stratégies pour une haute disponibilité ?",
-    "Quels sont les mécanismes d'authentification API ?",
-    "Comment assurez l'efficacité des performances ?",
-    "Quelles informations doivent être fournies lors du lancement de l'IHM?",
-    "Quel est le rôle de la fonction d'acheminement pour acheminer l'appel de service?",
-    'Quelles sont les principales fonctionnalités du portail fournisseur dans la gestion des API?',
-    "Que comprend la fonction d'exposition dans la gestion des API?"
-]
-
-
-def conversation_starters():
-    llm = load_model(streaming=True)
-
-    context = summary_query_engine.query("Make a complete summary of knowledge available"
-                                         " on following topics {topics}.")
-
-    ### Answer question ###
-    cs_system_prompt = """You are a helpful solution architect and software engineer assistant.
-        Your users are asking questions on specific topics.\
-        Suggest exactly 6 questions related to the provided context to help them find the information they need. \
-        Suggest only short questions without compound sentences. \
-        Question must be self-explanatory and topic related.
-        Suggest a variety of questions that cover different aspects of the context. \
-        Use the summary of knowledge to generate the question on topics. \
-        Make sure they are complete questions, and that they are related to the topics.
-        Output one question per line. Do not number the questions. Do not group question by topics. 
-        DO NOT make a summary or an introduction of your result. Output ONLY the generated questions.
-        DO NOT output chapter per topic. Avoid blank line.
-        Avoid duplicate question. Generate question in French.
-        Questions: """
-
-    #         Examples:
-    #         What information needs to be provided during IHM launch?
-    #         How is the data transferred to the service call?
-    #         What functions are involved in API Management?
-    #         What does the Exposure function in API Management entail?
-
-    cs_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", cs_system_prompt),
-            ("human", "{topics}"
-                      "{summary}"),
-        ]
-    )
-    output_parser = StrOutputParser()
-    model = load_model(streaming=False)
-
-    chain = cs_prompt | model | output_parser
-    response = chain.invoke({"topics": topics, "summary": context})
-
-    response_list = [line for line in response.split("\n") if line.strip() != '']
-    if len(response_list) > 4:
-        response_list = random.sample(response_list, 4)
-    elif len(response_list) < 4:
-        diff = 4 - len(response_list)
-        additional_questions = random.sample(suggested_questions_examples, diff)
-        response_list.extend(additional_questions)
-
-    return response_list
-
-
 if 'conversation_starters' not in st.session_state:
-    st.session_state['conversation_starters'] = conversation_starters()
+    st.session_state['conversation_starters'] = get_conversation_starters(topics)
 
-suggested_questions = st.session_state['conversation_starters']
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
@@ -512,7 +434,9 @@ def main():
 
     msgs = get_session_history(sessionid)
 
-    if len(msgs.messages) == 0 or st.sidebar.button("Efface la conversation"):
+    suggested_questions = st.session_state['conversation_starters']
+
+    if len(msgs.messages) == 0 or st.sidebar.button("Effacer la conversation"):
         msgs.clear()
 
     # Display suggested questions in a 2x2 table
