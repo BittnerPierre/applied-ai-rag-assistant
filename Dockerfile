@@ -23,7 +23,7 @@ FROM python:3.11-slim as runtime
 
 WORKDIR /app
 
-COPY data data
+COPY tests tests
 COPY conf conf
 
 ENV VIRTUAL_ENV=/app/.venv \
