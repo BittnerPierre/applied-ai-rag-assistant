@@ -28,48 +28,56 @@ st.set_page_config(page_title=f"""📄 {app_name} 🤗""", page_icon="📄")
 
 
 def main():
-    st.title(f"""Chargement des connaissances 📄""")
+    st.title(f"""Chargement des Connaissances 📄""")
 
     # with st.form("Upload File"):
     topic_name = st.text_input("Thème du document (ex: API, Cloud, Data, Architecture, Sécurité, ...)")
 
-    file_type = st.radio("Type du document", [e.value for e in DocumentType], index=None)
+    file_type = st.radio("Type de document", [e.value for e in DocumentType], index=None)
+
+    pdfs = st.file_uploader("Document(s) à transmettre", type=[e.value for e in SupportedFileType],
+                            accept_multiple_files=True)
+
+    disabled = True
+    if (file_type is not None) and (topic_name is not None) and (pdfs is not None) and (len(pdfs)):
+        disabled = False
+
 
     with st.container():
         st.subheader("Traitement des images")
         analyse_images = st.checkbox("Analyser les images")
         image_only = st.checkbox("Traiter uniquement les images (test mode)", disabled=(not analyse_images))
         restart_image_analysis = st.checkbox("Relancer l'analyse d'image (test mode)", disabled=(not analyse_images))
+
+    with st.container():
+        st.subheader("Autres options")
         generate_summary = st.checkbox("Ajouter au sommaire")
-
-    pdfs = st.file_uploader("Document(s) à transmettre", type=[e.value for e in SupportedFileType], accept_multiple_files=True)
-
-    disabled = True
-    if (file_type is not None) and (topic_name is not None) and (pdfs is not None) and (len(pdfs)):
-        disabled = False
 
     if st.button("Transmettre", disabled=disabled):
 
-        file_paths = []
-        if not os.path.exists(upload_directory):
-            os.makedirs(upload_directory)
-        for pdf in pdfs:
-            file_path = os.path.join(upload_directory, pdf.name)
-            with open(file_path, 'wb') as f:
-                f.write(pdf.read())
-            file_paths.append(file_path)
+        upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, restart_image_analysis, topic_name)
 
-        metadata = {Metadata.DOCUMENT_TYPE.value: file_type, Metadata.TOPIC.value: topic_name}
-        docs = []
-        if not image_only:
-            docs += load_doc(pdfs, metadata)
-        if analyse_images:
-            image_docs = load_image(pdfs, metadata, restart_image_analysis)
-            docs += image_docs
-        load_store(docs, collection_name=collection_name)
-        if generate_summary:
-            docs_li = docs_prepare(file_paths)
-            summary_index = build_llama_index(docs_li)
+
+def upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, restart_image_analysis, topic_name):
+    file_paths = []
+    if not os.path.exists(upload_directory):
+        os.makedirs(upload_directory)
+    for pdf in pdfs:
+        file_path = os.path.join(upload_directory, pdf.name)
+        with open(file_path, 'wb') as f:
+            f.write(pdf.read())
+        file_paths.append(file_path)
+    metadata = {Metadata.DOCUMENT_TYPE.value: file_type, Metadata.TOPIC.value: topic_name}
+    docs = []
+    if not image_only:
+        docs += load_doc(pdfs, metadata)
+    if analyse_images:
+        image_docs = load_image(pdfs, metadata, restart_image_analysis)
+        docs += image_docs
+    load_store(docs, collection_name=collection_name)
+    if generate_summary:
+        docs_li = docs_prepare(file_paths)
+        summary_index = build_llama_index(docs_li)
 
 
 def docs_prepare(file_paths: list[str]) -> list[LIDocument]:

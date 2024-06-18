@@ -77,7 +77,6 @@ def image_to_text(encoded_image, media_type) -> Optional[str]:
         return None
 
 
-
 def generate_unique_id(fname):
     # Generate MD5 hash of the filename
     hash_object = hashlib.md5(fname.name.encode())

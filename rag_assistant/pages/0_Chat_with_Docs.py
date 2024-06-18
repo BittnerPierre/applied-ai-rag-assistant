@@ -356,21 +356,23 @@ def suggestion_clicked(question):
 
 
 def main():
-    st.title("Chat with Documents")
+    st.title("Dialogue avec les Connaissances")
 
     msgs = get_session_history(sessionid)
 
-    if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
+    if len(msgs.messages) == 0 or st.sidebar.button("Efface la conversation"):
         msgs.clear()
         #msgs.add_ai_message("Comment puis-je vous aider?")
 
 
     # Display suggested questions in a 2x2 table
-    col1, col2 = st.columns(2)
-    for i, question in enumerate(suggested_questions, start=1):
-        # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
-        col = col1 if i % 2 != 0 else col2
-        col.button(question, on_click=suggestion_clicked, args=[question])
+    with st.container():
+        st.subheader("Amorces de conversation", divider="rainbow")
+        col1, col2 = st.columns(2)
+        for i, question in enumerate(suggested_questions, start=1):
+            # if not st.session_state.get(f"suggested_question_{i}_hidden", False):
+            col = col1 if i % 2 != 0 else col2
+            col.button(question, on_click=suggestion_clicked, args=[question])
 
 
     # Chat interface
@@ -380,7 +382,7 @@ def main():
         st.chat_message(avatars[msg.type]).write(msg.content)
         if (msg.type == "ai") and (i > 0):
             streamlit_feedback(feedback_type = "thumbs",
-                               optional_text_label="Cette réponse vous convient-elle?",
+                               optional_text_label="Cette réponse te convient?",
                                key=f"feedback_{i}",
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
@@ -392,7 +394,7 @@ def main():
         handle_assistant_response(user_query)
 
     #Handle user queries
-    if user_query := st.chat_input(placeholder="Ask me anything!"):
+    if user_query := st.chat_input(placeholder="Pose-moi toutes tes questions!"):
         handle_assistant_response(user_query)
 
 

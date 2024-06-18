@@ -59,9 +59,11 @@ def get_metadatas(collection_name : str):
         )
         documents = response['hits']['hits']
         metadatas = [doc['_source']['metadata'] for doc in documents]
-    else:
+    elif isinstance(store, Chroma):
         collection = store._collection
         metadatas = collection.get()['metadatas']
+    else:
+        return {}
 
     return metadatas
 
@@ -315,18 +317,23 @@ def get_store(embeddings: Embeddings = None, collection_name=None) -> VectorStor
 
     return db
 
-def get_collection_count() -> int:
+
+def get_collection_count(collection_name:str = None) -> int:
     """Get the number of documents in a collection (chroma, FAISS) or an index (opensearch)"""
-    store = get_store()
+    if collection_name is None:
+        collection_name = config.get('VECTORDB', 'collection_name')
+    store = get_store(collection_name)
     if isinstance(store, OpenSearchVectorSearch):
         client = store.client
-        collection_name = config.get('VECTORDB', 'collection_name')
         index_name = collection_name.lower()
         count = client.count(index=index_name)['count']
-    else:
+    elif isinstance(store, Chroma):
         collection = store._collection
         count = collection.count()
+    elif isinstance(store, FAISS):
+        count = 0
     return count
+
 
 def clean_text(s):
     regex_replacements = [

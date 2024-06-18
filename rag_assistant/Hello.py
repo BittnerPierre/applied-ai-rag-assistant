@@ -18,13 +18,13 @@ model_name = get_model_name(provider=model_provider)
 embeddings_model = get_embeddings_model_name(provider=model_provider)
 
 def main():
-    st.title(f"""Welcome to {app_name} ! 👋""")
+    st.title(f"""Bienvenue sur {app_name} ! 👋""")
 
     st.markdown(
         f"""
-        {app_name} on '**{model_provider}**' with '**{model_name}**' LLM.
+        **{app_name}** utilise '**{model_provider}**' avec comme _modèle de langage_ '**{model_name}**'.
         
-        Knowledge base on '**{vectordb}**' with embedding model : '**{embeddings_model}**'.
+        La _base de connaissance_ est sur '**{vectordb}**' avec comme _modèle d'embedding_ : '**{embeddings_model}**'.
     """
     )
     st.write(sys.version)

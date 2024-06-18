@@ -508,11 +508,11 @@ def suggestion_clicked(question):
 
 
 def main():
-    st.title("Chat with Documents")
+    st.title("Dialogue avec les Connaissances")
 
     msgs = get_session_history(sessionid)
 
-    if len(msgs.messages) == 0 or st.sidebar.button("Clear message history"):
+    if len(msgs.messages) == 0 or st.sidebar.button("Efface la conversation"):
         msgs.clear()
 
     # Display suggested questions in a 2x2 table
@@ -531,7 +531,7 @@ def main():
         st.chat_message(avatars[msg.type]).write(msg.content)
         if (msg.type == "ai") and (i > 0):
             streamlit_feedback(feedback_type="thumbs",
-                               optional_text_label="Cette réponse vous convient-elle?",
+                               optional_text_label="Cette réponse te convient?",
                                key=f"feedback_{i}",
                                on_submit=lambda x: _submit_feedback(x, emoji="👍"))
 
@@ -542,7 +542,7 @@ def main():
         handle_assistant_response(user_query)
 
     # Handle user queries
-    if user_query := st.chat_input(placeholder="Ask me anything!"):
+    if user_query := st.chat_input(placeholder="Pose-moi toutes tes questions!"):
         handle_assistant_response(user_query)
 
 
