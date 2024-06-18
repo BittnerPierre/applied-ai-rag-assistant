@@ -272,7 +272,8 @@ def main():
     selected_session = session_id
     session_deleted = False
 
-    for chat_session in chat_sessions:
+    # Reverse the chat sessions to display the newest first
+    for chat_session in reversed(chat_sessions):
         title = st.session_state.chat_titles.get(chat_session, chat_session)
         with st.sidebar:
             with st.expander(title):
@@ -309,6 +310,9 @@ def main():
     if msgs:
         if len(msgs.messages) == 0:
             msgs.clear()
+
+        # Reverse the messages to display most recent first
+        #reversed_messages = reversed(msgs.messages)
 
         col1, col2 = st.columns(2)
         for i, question in enumerate(suggested_questions, start=1):
