@@ -112,7 +112,7 @@ def get_automerging_query_engine(
 ):
     base_retriever = automerging_index.as_retriever(similarity_top_k=similarity_top_k)
     retriever = AutoMergingRetriever(
-        base_retriever, automerging_index.storage_contextstorage_context, verbose=True
+        base_retriever, automerging_index.storage_context, verbose=True
     )
 
     rerank = SentenceTransformerRerank(
