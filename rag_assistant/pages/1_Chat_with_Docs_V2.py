@@ -21,7 +21,8 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import traceable
 
 import utils.constants
-from shared.llm_facade import get_conversation_starters, summary_query_engine
+from shared.llm_facade import get_conversation_starters
+from utils.utilsrag_li import get_summary_index_engine
 from utils.auth import check_password
 from utils.constants import Metadata
 from utils.utilsdoc import get_store, extract_unique_name
@@ -314,6 +315,7 @@ def knowledge_summary(question: str) -> str:
     """Useful IF you need to answer a general question or need to have a holistic summary on knowledge.
     DO NOT use if you have specific question.
     DO NOT USE MULTI-ARGUMENTS INPUT."""
+    summary_query_engine = get_summary_index_engine()
     return summary_query_engine.query(question)
 
 

@@ -1,19 +1,8 @@
 import random
 
-import streamlit as st
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from llama_index.core import StorageContext, load_index_from_storage
-from llama_index.core.response_synthesizers import ResponseMode
-
 from utils.config_loader import load_config
-from utils.utilsllm import load_model
 
 config = load_config()
-
-LLAMA_INDEX_ROOT_DIR = config["LLAMA_INDEX"]["LLAMA_INDEX_ROOT_DIR"]
-SUMMARY_INDEX_DIR = config["LLAMA_INDEX"]["SUMMARY_INDEX_DIR"]
-summary_index_folder = f"{LLAMA_INDEX_ROOT_DIR}/{SUMMARY_INDEX_DIR}"
 
 
 # La génération par LLM va etre fait au moment de la création du summary index.
@@ -58,27 +47,36 @@ summary_index_folder = f"{LLAMA_INDEX_ROOT_DIR}/{SUMMARY_INDEX_DIR}"
 # chain = cs_prompt | model | output_parser
 # response = chain.invoke({"topics": topics, "summary": context})
 
-def get_conversation_starters(topics: list[str]):
-
-    suggested_questions = suggested_questions_examples
-
-    # check if 'API' is in topics
-    if 'API' in topics:
-        suggested_questions.extend(suggested_questions_examples_api)
-
-    # check if 'IHM' is in topics
-    if 'IHM' in topics:
-        suggested_questions.extend(suggested_questions_examples_ihm)
+def get_conversation_starters(topics: list[str], count:int = 4):
 
     response = ""
 
     response_list = [line for line in response.split("\n") if line.strip() != '']
-    if len(response_list) > 4:
-        response_list = random.sample(response_list, 4)
-    elif len(response_list) < 4:
+    if len(response_list) > count:
+        response_list = random.sample(response_list, count)
+
+    elif len(response_list) < count:
         diff = 4 - len(response_list)
-        additional_questions = random.sample(suggested_questions, diff)
-        response_list.extend(additional_questions)
+
+        suggested_questions = suggested_questions_examples
+
+        # check if 'API' is in topics
+        if 'API' in topics:
+            suggested_questions.extend(suggested_questions_examples_api)
+
+        # check if 'IHM' is in topics
+        if 'IHM' in topics:
+            suggested_questions.extend(suggested_questions_examples_ihm)
+
+        all_questions = list(suggested_questions)
+
+        for _ in range(min(count, len(all_questions))):
+            question = random.choice(all_questions)
+            all_questions.remove(question)
+            response_list.append(question)
+
+        #additional_questions = random.sample(suggested_questions, diff)
+        #response_list.extend(additional_questions)
 
     return response_list
 
@@ -146,8 +144,3 @@ suggested_questions_examples_ihm = [
     # "Comment prévenir les injections dans une API ?"
 
 
-storage_context = StorageContext.from_defaults(persist_dir=summary_index_folder)
-doc_summary_index = load_index_from_storage(storage_context)
-summary_query_engine = doc_summary_index.as_query_engine(
-    response_mode=ResponseMode.TREE_SUMMARIZE, use_async=True
-)

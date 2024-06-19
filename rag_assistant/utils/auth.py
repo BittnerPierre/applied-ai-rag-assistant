@@ -4,7 +4,20 @@ import streamlit as st
 def check_password():
     """Returns `True` if the user had the correct password."""
 
-    if "password" not in st.secrets:
+    if st.session_state.get("password_correct", False):
+        return True
+
+    try:
+
+        if "password" not in st.secrets:
+            # no password required
+            st.session_state["password_correct"] = True
+            return True
+
+    except FileNotFoundError:
+        # no secrets.toml so no password required
+        # no password required
+        st.session_state["password_correct"] = True
         return True
 
     def password_entered():
@@ -15,9 +28,7 @@ def check_password():
         else:
             st.session_state["password_correct"] = False
 
-    # Return True if the passward is validated.
-    if st.session_state.get("password_correct", False):
-        return True
+        # Return True if the password is validated.
 
     # Show input for password.
     st.text_input(
