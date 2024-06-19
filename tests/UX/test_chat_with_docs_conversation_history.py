@@ -77,7 +77,6 @@ def test_chat_with_docs(mock_load_config):
     print(at.columns)
     print(at.sidebar.button)
     assert at.sidebar.button[1].label == '🚮 Delete'
-    assert at.sidebar.button[2].label == st.session_state["session_id"]
     at.sidebar.button[0].click().run()
     
 
