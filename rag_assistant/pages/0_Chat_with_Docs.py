@@ -277,7 +277,7 @@ conversational_rag_chain = RunnableWithMessageHistory(
 
 
 if 'conversation_starters' not in st.session_state:
-    st.session_state['conversation_starters'] = get_conversation_starters(topics)
+    st.session_state['conversation_starters'] = get_conversation_starters(unique_topic_names)
 
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
