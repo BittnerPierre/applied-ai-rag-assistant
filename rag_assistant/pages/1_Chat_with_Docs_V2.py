@@ -22,6 +22,7 @@ from langsmith import traceable
 
 import utils.constants
 from shared.llm_facade import get_conversation_starters, summary_query_engine
+from utils.auth import check_password
 from utils.constants import Metadata
 from utils.utilsdoc import get_store, extract_unique_name
 from utils.config_loader import load_config
@@ -475,4 +476,7 @@ def main():
 
 
 if __name__ == "__main__":
+    if not check_password():
+        # Do not continue if check_password is not True.
+        st.stop()
     main()

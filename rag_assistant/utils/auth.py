@@ -1,9 +1,11 @@
 import hmac
 import streamlit as st
 
-
 def check_password():
     """Returns `True` if the user had the correct password."""
+
+    if "password" not in st.secrets:
+        return True
 
     def password_entered():
         """Checks whether a password entered by the user is correct."""

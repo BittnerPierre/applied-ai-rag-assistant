@@ -16,6 +16,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import traceable
 
 from shared.llm_facade import get_conversation_starters
+from utils.auth import check_password
 from utils.constants import Metadata
 from utils.utilsdoc import get_store, extract_unique_name
 from utils.config_loader import load_config
@@ -402,4 +403,7 @@ def main():
 
 
 if __name__ == "__main__":
+    if not check_password():
+        # Do not continue if check_password is not True.
+        st.stop()
     main()

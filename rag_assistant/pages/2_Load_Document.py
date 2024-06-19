@@ -8,6 +8,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.response_synthesizers import ResponseMode
 from llama_index.core.schema import Document as LIDocument
 
+from utils.auth import check_password
 from utils.constants import DocumentType, SupportedFileType, Metadata
 from utils.config_loader import load_config
 from utils.utilsdoc import load_doc, load_store, get_child_chunk_size
@@ -150,4 +151,7 @@ def build_llama_index(docs: list[LIDocument]) -> BaseIndex:
 
 
 if __name__ == "__main__":
+    if not check_password():
+        # Do not continue if check_password is not True.
+        st.stop()
     main()

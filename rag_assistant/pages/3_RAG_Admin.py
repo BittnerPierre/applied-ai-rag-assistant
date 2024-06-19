@@ -2,6 +2,7 @@ import streamlit as st
 
 import json
 
+from utils.auth import check_password
 from utils.constants import DocumentType, ChunkType, Metadata
 from utils.utilsdoc import get_store, empty_store, extract_unique_name, get_collection_count, get_metadatas, delete_documents_by_type_and_name
 from utils.config_loader import load_config
@@ -107,4 +108,7 @@ def main():
 
 
 if __name__ == "__main__":
+    if not check_password():
+        # Do not continue if check_password is not True.
+        st.stop()
     main()

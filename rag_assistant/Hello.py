@@ -1,5 +1,7 @@
 import streamlit as st
 import sys
+
+from utils.auth import check_password
 from utils.config_loader import load_config
 from utils.utilsllm import get_model_provider, get_model_name, get_embeddings_model_name
 
@@ -31,4 +33,9 @@ def main():
 
 
 if __name__ == "__main__":
+
+    if not check_password():
+        # Do not continue if check_password is not True.
+        st.stop()
+
     main()
