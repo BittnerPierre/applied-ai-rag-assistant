@@ -6,11 +6,12 @@ on:
   pull_request:
     branches: [ main, stable ]
 
+env:
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python 3.11
@@ -25,3 +26,4 @@ jobs:
     - name: Test with pytest
       run: |
         poetry run pytest
+

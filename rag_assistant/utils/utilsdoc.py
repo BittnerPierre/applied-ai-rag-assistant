@@ -20,7 +20,7 @@ import uuid
 from .constants import Metadata, ChunkType
 from requests_aws4auth import AWS4Auth
 from botocore.session import Session
-from opensearchpy import RequestsHttpConnection
+from opensearchpy import RequestsHttpConnection, exceptions
 
 from .utilsllm import load_embeddings
 from .config_loader import load_config
@@ -57,19 +57,40 @@ def get_metadatas(collection_name : str):
     if isinstance(store, OpenSearchVectorSearch):
         client = store.client
         index_name = collection_name.lower()
-        response = client.search(
-            index=index_name,
-            body={
-                "query": {
-                    "match_all": {}
-                },
-                "_source": {
-                    "includes": ["metadata"]
+        try:
+            response = client.search(
+                index=index_name,
+                scroll='2m',  # Keep the search context alive for 2 minutes
+                size=100,  # Adjust the size per page
+                body={
+                    "query": {
+                        "match_all": {}
+                    },
+                    "_source": {
+                        "includes": ["metadata"]
+                    }
                 }
-            }
-        )
-        documents = response['hits']['hits']
-        metadatas = [doc['_source']['metadata'] for doc in documents]
+            )
+
+            # List to hold all results
+            all_results = response['hits']['hits']
+
+            # Use the scroll API to fetch all results
+            while True:
+                scroll_id = response['_scroll_id']
+                response = client.scroll(
+                    scroll_id=scroll_id,
+                    scroll='2m'
+                )
+                
+                # Break the loop if no more results
+                if not response['hits']['hits']:
+                    break
+                
+                all_results.extend(response['hits']['hits'])
+            metadatas = [doc['_source']['metadata'] for doc in all_results]
+        except exceptions.NotFoundError:
+            metadatas = []
     elif isinstance(store, Chroma):
         collection = store._collection
         metadatas = collection.get()['metadatas']
@@ -188,6 +209,29 @@ def empty_store(collection_name="Default") -> None:
         persistent_client = chromadb.PersistentClient(path=persist_directory)
 
         persistent_client.delete_collection(name=collection_name)
+
+    elif vectordb == "opensearch":
+        credentials = Session().get_credentials()
+        aws_region = config.get('VECTORDB', 'opensearch_aws_region')
+
+        awsauth = AWS4Auth(region=aws_region, service='es',
+                    refreshable_credentials=credentials)
+
+        opensearch_url = config.get('VECTORDB', 'opensearch_url')
+        # Index name should be lowercase
+        index_name = collection_name.lower()
+
+        db = OpenSearchVectorSearch(
+            opensearch_url=opensearch_url,
+            embedding_function=load_embeddings(),
+            http_auth=awsauth,
+            timeout=300,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+            index_name=index_name,
+        )
+        db.delete_index(index_name)
     else:
         raise NotImplementedError(f"{vectordb} empty_store not implemented yet")
 
@@ -275,8 +319,10 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
         # Index name should be lowercase
         index_name = config.get('VECTORDB', 'collection_name').lower()
 
+        bulk_size = config.getint('VECTORDB', 'opensearch_bulk_size', fallback=500)
+
         db = OpenSearchVectorSearch.from_documents(
-            documents,
+            documents[:bulk_size],
             embedding=embeddings,
             opensearch_url=opensearch_url,
             http_auth=awsauth,
@@ -285,7 +331,13 @@ def load_store(documents: list[Document], embeddings: Embeddings = None, collect
             verify_certs=True,
             connection_class=RequestsHttpConnection,
             index_name=index_name,
+            bulk_size=bulk_size
         )
+        remaining_documents = documents[bulk_size:]
+
+        while remaining_documents:
+            db.add_documents(remaining_documents[:bulk_size])
+            remaining_documents = remaining_documents[bulk_size:]
     else:
         raise NotImplementedError(f"{vectordb} load_store not implemented yet")
 
@@ -335,6 +387,8 @@ def get_store(embeddings: Embeddings = None, collection_name=None) -> VectorStor
         # Index name should be lowercase
         index_name = collection_name.lower()
 
+        bulk_size = config.getint('VECTORDB', 'opensearch_bulk_size', fallback=500)
+
         db = OpenSearchVectorSearch(
             opensearch_url=opensearch_url,
             embedding_function=embeddings,
@@ -344,6 +398,7 @@ def get_store(embeddings: Embeddings = None, collection_name=None) -> VectorStor
             verify_certs=True,
             connection_class=RequestsHttpConnection,
             index_name=index_name,
+            bulk_size=bulk_size
         )
     else:
         raise NotImplementedError(f"{vectordb} get_store not implemented yet")
@@ -359,7 +414,14 @@ def get_collection_count(collection_name:str = None) -> int:
     if isinstance(store, OpenSearchVectorSearch):
         client = store.client
         index_name = collection_name.lower()
-        count = client.count(index=index_name)['count']
+        try:
+            count_response = client.count(index=index_name)
+        except exceptions.NotFoundError:
+            count_response = None
+        if count_response:
+            count = count_response['count']
+        else:
+            count = 0
     elif isinstance(store, Chroma):
         collection = store._collection
         count = collection.count()
