@@ -91,7 +91,8 @@ def temp_dir(request):
     yield dir_name
 
     # Teardown: Remove the temporary directory after tests are done
-    shutil.rmtree(dir_name)
+    if os.path.isdir(dir_name):  # Check if the directory exists before removing it
+        shutil.rmtree(dir_name)
 
 
 def llm_prepare():
