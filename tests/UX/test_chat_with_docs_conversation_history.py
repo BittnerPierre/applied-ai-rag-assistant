@@ -41,7 +41,7 @@ def mock_llm_response(*args, **kwargs):
 
 
 def test_new_chat_session():
-    at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/Hello.py")
+    at = AppTest.from_file("/rag_assistant/Hello.py")
     at.run(timeout=10)  # Increase the timeout to 10 seconds
     assert not at.exception
     assert at.title[0].value == "Welcome Page"
@@ -55,7 +55,7 @@ def test_new_chat_session():
  
 @patch('langchain_core.runnables.history.RunnableWithMessageHistory.invoke', side_effect=mock_llm_response)
 def test_chat_with_docs(mock_load_config):
-    at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/pages/0_Chat_with_Docs.py")
+    at = AppTest.from_file("/pages/0_Chat_with_Docs.py")
     at.run(timeout=10)
     assert not at.exception
  
@@ -75,26 +75,12 @@ def test_chat_with_docs(mock_load_config):
     assert at.chat_message[1].avatar == "assistant"
     assert not at.exception
     print(at.columns)
-    assert at.columns[3].button[0].label == '🚮'
+    print(at.sidebar.button)
+    assert at.sidebar.button[1].label == '🚮 Delete'
+    assert at.sidebar.button[2].label == st.session_state["session_id"]
     at.sidebar.button[0].click().run()
     
 
 
     
-
-# def test_delete_chat_session():
-#     at = AppTest.from_file("/Users/loicsteve/Desktop/applied-ai-rag-assistant/rag_assistant/pages/0_Chat_with_Docs.py")
-#     at.run()
-#     assert not at.exception
-#     # session_id =  "test_session_id"
-#     # st.session_state["session_id"] = session_id
-#     print(at.columns)
-#     assert at.button[1].label == '🚮'
-    # at.button[1].click().run()
-    # assert len(at.session_state.chat_histories) == 0
-    #delete_button = at.sidebar.button("Delete")
-    # assert delete_button is not None
-    # delete_button.click().run()
-    # # Check that the chat session is deleted
-    # assert len(at.session_state.chat_histories) == 0
 

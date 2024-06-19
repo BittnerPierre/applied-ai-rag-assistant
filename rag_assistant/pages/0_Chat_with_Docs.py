@@ -277,7 +277,7 @@ def main():
         title = st.session_state.chat_titles.get(chat_session, chat_session)
         with st.sidebar:
             with st.expander(title):
-                if st.button(f"Delete", key=f"delete_{chat_session}"):
+                if st.button(f"🚮 Delete", key=f"delete_{chat_session}"):
                     if chat_session in st.session_state.chat_histories:
                         del st.session_state.chat_histories[chat_session]
                     if chat_session in st.session_state.chat_titles:
