@@ -387,25 +387,29 @@ if 'conversation_starters' not in st.session_state:
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
-    st.chat_message("user").write(user_query)
-    with ((st.chat_message("assistant"))):
-        if 'retrievals' in st.session_state:
-            del st.session_state['retrievals']
-        response = main_chain.invoke(
-            input={"input": user_query, "topics": topics},
-            config={"configurable": {"session_id": sessionid}}
-        )
-        ai_response = response["output"]  # "answer"
-        # emptying container to remove initial question that is render by llm
-        # e.empty()
-        e = st.empty()
-        with e.container():
-            st.markdown(ai_response)
-            # context = response["context"]
+    try:
+        st.chat_message("user").write(user_query)
+        with ((st.chat_message("assistant"))):
             if 'retrievals' in st.session_state:
-                context = st.session_state['retrievals']
-                display_context_in_pdf_viewer(context)
-        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
+                del st.session_state['retrievals']
+            response = main_chain.invoke(
+                input={"input": user_query, "topics": topics},
+                config={"configurable": {"session_id": sessionid}}
+            )
+            ai_response = response["output"]  # "answer"
+            # emptying container to remove initial question that is render by llm
+            # e.empty()
+            e = st.empty()
+            with e.container():
+                st.markdown(ai_response)
+                # context = response["context"]
+                if 'retrievals' in st.session_state:
+                    context = st.session_state['retrievals']
+                    display_context_in_pdf_viewer(context)
+            logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
+    except Exception as e:
+        st.error(f"La base de connaissance n'a pas été initialisée.\n\n"
+                 f"Source: {e}")
 
 
 def display_context_in_pdf_viewer(context):

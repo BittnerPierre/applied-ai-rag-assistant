@@ -1,6 +1,7 @@
 import os
 import threading
 
+import opensearchpy
 import streamlit as st
 from streamlit_pdf_viewer import pdf_viewer
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -282,75 +283,76 @@ if 'conversation_starters' not in st.session_state:
 
 @traceable(run_type="chain", project_name="RAG Assistant", tags=["LangChain", "RAG", "Chat_with_Docs"])
 def handle_assistant_response(user_query):
-    st.chat_message("user").write(user_query)
-    with ((st.chat_message("assistant"))):
-        # Retrieving the streamlit context to bind it to call back
-        # in order to write in another threadcontext
-        ctx = get_script_run_ctx()
-        retrieval_handler = PrintRetrievalHandler(st.container(), ctx)
-        # RETRIEVE THE CONTAINER TO CLEAR IT LATER to not show question twice
-        e = st.empty()
-        stream_handler = StreamHandler(e, ctx)
-        # CODE WORKING BUT ALL LC API
-        # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
-        # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
-        # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
-        # ai_response = qa_chain.invoke({"question": user_query},
-        #                               {"configurable": {"session_id": sessionid},
-        #                                   "callbacks": [
-        #                                   retrieval_handler,
-        #                                   stream_handler
-        #                                 ]
-        #                               },
-        # )["answer"]
-        # END CODE WORKING WITH ALL LC API
+    try:
+        st.chat_message("user").write(user_query)
+        with ((st.chat_message("assistant"))):
+            # Retrieving the streamlit context to bind it to call back
+            # in order to write in another threadcontext
+            ctx = get_script_run_ctx()
+            retrieval_handler = PrintRetrievalHandler(st.container(), ctx)
+            # RETRIEVE THE CONTAINER TO CLEAR IT LATER to not show question twice
+            e = st.empty()
+            stream_handler = StreamHandler(e, ctx)
+            # CODE WORKING BUT ALL LC API
+            # THE CODE BELOW IS WORKING WITH RETRIEVER PRINT AND STREAMING
+            # BUT ADDING A SYSTEM PROMPT SEEMS VERY TRICKY
+            # OK SYSTEM PROMPT ADDED ABOVE ON QA_CHAIN WITH combine_docs_chain_kwargs
+            # ai_response = qa_chain.invoke({"question": user_query},
+            #                               {"configurable": {"session_id": sessionid},
+            #                                   "callbacks": [
+            #                                   retrieval_handler,
+            #                                   stream_handler
+            #                                 ]
+            #                               },
+            # )["answer"]
+            # END CODE WORKING WITH ALL LC API
 
-        # NEW API OF LANGCHAIN
-        # PROMPT NEED TO BE CHANGED
-        response = conversational_rag_chain.invoke(
-            input={"input": user_query, "topics": topics},
-            config={
-                "configurable": {"session_id": sessionid},
-                "callbacks": [
-                    retrieval_handler,
-                    stream_handler
-                ]
-            },
-        )
+            # NEW API OF LANGCHAIN
+            # PROMPT NEED TO BE CHANGED
+            response = conversational_rag_chain.invoke(
+                input={"input": user_query, "topics": topics},
+                config={
+                    "configurable": {"session_id": sessionid},
+                    "callbacks": [
+                        retrieval_handler,
+                        stream_handler
+                    ]
+                },
+            )
+            ai_response = response["answer"]
+            # emptying container to remove initial question that is render by llm
+            e.empty()
+            with e.container():
+                st.markdown(ai_response)
+                context = response["context"]
+                metadata = [(doc.metadata['filename'], doc.metadata['page']) for doc in context]
+                metadata_dict = {}
+                for filename, page in metadata:
+                    if filename not in metadata_dict:
+                        metadata_dict[filename] = []  # Initialize a new list for new filename
+                    metadata_dict[filename].append(page)
 
+                # Create a new sorted list
+                sorted_metadata = sorted(metadata_dict.items(), key=lambda x: len(x[1]), reverse=True)
 
-        ai_response = response["answer"]
-        # emptying container to remove initial question that is render by llm
-        e.empty()
-        with e.container():
-            st.markdown(ai_response)
-            context = response["context"]
-            metadata = [(doc.metadata['filename'], doc.metadata['page']) for doc in context]
-            metadata_dict = {}
-            for filename, page in metadata:
-                if filename not in metadata_dict:
-                    metadata_dict[filename] = []  # Initialize a new list for new filename
-                metadata_dict[filename].append(page)
+                # Format the sorted list
+                formatted_metadata = []
+                for item in sorted_metadata:
+                    formatted_metadata.append([item[0], item[1]])
+                if formatted_metadata:  # check if list is empty
+                    first_metadata = formatted_metadata[0]
+                    filename = first_metadata[0]
+                    pages = first_metadata[1]
+                    #show_retrievals = st.checkbox("Show PDFs")
+                    with st.expander(f"Source: {filename}", expanded=True):
 
-            # Create a new sorted list
-            sorted_metadata = sorted(metadata_dict.items(), key=lambda x: len(x[1]), reverse=True)
-
-            # Format the sorted list
-            formatted_metadata = []
-            for item in sorted_metadata:
-                formatted_metadata.append([item[0], item[1]])
-            if formatted_metadata:  # check if list is empty
-                first_metadata = formatted_metadata[0]
-                filename = first_metadata[0]
-                pages = first_metadata[1]
-                #show_retrievals = st.checkbox("Show PDFs")
-                with st.expander(f"Source: {filename}", expanded=True):
-
-                        pdf_viewer(f"{upload_directory}/{filename}",
-                                   height=400,
-                                   pages_to_render=pages)
-        logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
-
+                            pdf_viewer(f"{upload_directory}/{filename}",
+                                       height=400,
+                                       pages_to_render=pages)
+            logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
+    except Exception as e:
+        st.error(f"La base de connaissance n'a pas été initialisée.\n\n"
+                 f"Source: {e}")
 
 
 def suggestion_clicked(question):

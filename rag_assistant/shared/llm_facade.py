@@ -56,7 +56,7 @@ def get_conversation_starters(topics: list[str], count:int = 4):
         response_list = random.sample(response_list, count)
 
     elif len(response_list) < count:
-        diff = 4 - len(response_list)
+        diff = count - len(response_list)
 
         suggested_questions = suggested_questions_examples
 
@@ -70,10 +70,17 @@ def get_conversation_starters(topics: list[str], count:int = 4):
 
         all_questions = list(suggested_questions)
 
-        for _ in range(min(count, len(all_questions))):
-            question = random.choice(all_questions)
-            all_questions.remove(question)
-            response_list.append(question)
+        selected_questions = set(response_list)
+
+        while len(selected_questions) < count:
+            question = random.choice(suggested_questions)
+            selected_questions.add(question)
+
+        response_list = list(selected_questions)
+        # for _ in range(min(count, len(all_questions))):
+        #     question = random.choice(all_questions)
+        #     all_questions.remove(question)
+        #     response_list.append(question)
 
         #additional_questions = random.sample(suggested_questions, diff)
         #response_list.extend(additional_questions)
@@ -89,13 +96,13 @@ suggested_questions_examples = [
     "Quels sont les principes de la Content Security Policy ?",
     "Comment garantir la sécurité des échanges entre applications ?",
     "Quelles sont les bonnes pratiques pour assurer la fiabilité des ressources Web ?",
-    "Pourquoi suivre les spécifications associées est-il important ?,"
+    "Pourquoi suivre les spécifications associées est-il important ?"
 ]
     # API
 suggested_questions_examples_api = [
     "Quels sont les mécanismes d'authentification API ?",
     "Quelles sont les principales fonctionnalités du portail fournisseur ?",
-    "Que comprend la fonction d'exposition dans la gestion des API? ",
+    "Que comprend la fonction d'exposition dans la gestion des API ?",
     "Quelle est la différence entre SOAP et REST ?",
     "Que signifie l'acronyme API ?",
     "Quels formats de données sont couramment utilisés dans les APIs ?",
