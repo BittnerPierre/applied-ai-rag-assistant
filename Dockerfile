@@ -27,7 +27,7 @@ COPY tests tests
 COPY conf conf
 
 RUN mkdir -p .streamlit
-RUN touch .streamlit/secret.toml
+RUN touch .streamlit/secrets.toml
 
 ENV VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
