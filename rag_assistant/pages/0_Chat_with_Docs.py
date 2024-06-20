@@ -48,9 +48,8 @@ collection_name = config['VECTORDB']['collection_name']
 # Generate a new session ID
 def get_session_id():
     if "session_id" not in st.session_state:
-        now = datetime.datetime.now()
-        session_id = now.strftime("%Y-%m-%d_%H-%M-%S")
-        st.session_state.session_id = session_id                    
+        session_id = "New Chat 1"
+        st.session_state.session_id = session_id
     return st.session_state.session_id
 
 # Retrieve chat history for a given session
@@ -74,7 +73,6 @@ def generate_session_title(query):
         return response.content.strip()
     else:
         raise ValueError("Unexpected response type from LLM")
-
 
 __template2__ = """You are an assistant designed to guide software application architect and tech lead to go through a risk assessment questionnaire for application cloud deployment. 
     The questionnaire is designed to cover various pillars essential for cloud architecture,
@@ -189,12 +187,12 @@ Keep the same language as the follow up question.
 {context}"""
 
 qa_prompt = ChatPromptTemplate.from_messages([
-    ("system", qa_system_prompt),
-    MessagesPlaceholder("chat_history"),
-    ("human", "{input}"),
+    SystemMessagePromptTemplate.from_template(qa_system_prompt),
+    HumanMessagePromptTemplate.from_template("{input}"),
 ])
 
 question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+
 rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
 conversational_rag_chain = RunnableWithMessageHistory(
@@ -246,8 +244,8 @@ def suggestion_clicked(question):
     st.session_state.user_suggested_question = question
 
 def main():
-    st.title("Chat with Documents")
-    st.sidebar.title("Chat Sessions")
+    st.title("Dialogue avec les connaissances")
+    st.sidebar.title("Sessions de conversation")
 
     if "session_id" not in st.session_state:
         session_id = get_session_id()
@@ -260,13 +258,17 @@ def main():
     if "chat_titles" not in st.session_state:
         st.session_state.chat_titles = {}
 
+    if "new_chat_counter" not in st.session_state:
+        st.session_state.new_chat_counter = 1
+
     chat_sessions = list(st.session_state.chat_histories.keys())
 
-    if st.sidebar.button("New Chat"):
-        session_id = str(datetime.datetime.now())
+    if st.sidebar.button("Nouvelle Conversation"):
+        st.session_state.new_chat_counter += 1
+        session_id = f"Nouvelle Conversation {st.session_state.new_chat_counter}"
         st.session_state.session_id = session_id
         st.session_state.chat_histories[session_id] = StreamlitChatMessageHistory(key=f"chat_history_{session_id}")
-        st.session_state.chat_titles[session_id] = session_id  # Use the session_id as a temporary title
+        st.session_state.chat_titles[session_id] = session_id  # Use session ID as a temporary title
         st.rerun()
 
     selected_session = session_id
@@ -277,7 +279,7 @@ def main():
         title = st.session_state.chat_titles.get(chat_session, chat_session)
         with st.sidebar:
             with st.expander(title):
-                if st.button(f"🚮 Delete", key=f"delete_{chat_session}"):
+                if st.button(f"🚮 Supprimer", key=f"delete_{chat_session}"):
                     if chat_session in st.session_state.chat_histories:
                         del st.session_state.chat_histories[chat_session]
                     if chat_session in st.session_state.chat_titles:
@@ -311,9 +313,6 @@ def main():
         if len(msgs.messages) == 0:
             msgs.clear()
 
-        # Reverse the messages to display most recent first
-        #reversed_messages = reversed(msgs.messages)
-
         col1, col2 = st.columns(2)
         for i, question in enumerate(suggested_questions, start=1):
             col = col1 if i % 2 != 0 else col2
@@ -333,7 +332,7 @@ def main():
             st.session_state.pop("user_suggested_question")
             handle_assistant_response(user_query)
 
-        if user_query := st.chat_input(placeholder="Ask me anything!"):
+        if user_query := st.chat_input(placeholder="Pose moi tes questions!"):
             if session_id not in st.session_state.chat_titles or st.session_state.chat_titles[session_id] == session_id:
                 title = generate_session_title(user_query)
                 st.session_state.chat_titles[session_id] = title
