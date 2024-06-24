@@ -7,6 +7,7 @@ from langchain.agents import AgentExecutor, create_structured_chat_agent
 from langchain.chains.query_constructor.schema import AttributeInfo
 from langchain.retrievers import SelfQueryRetriever
 from langchain_core.tools import ToolException, tool
+from opensearchpy import NotFoundError
 from streamlit_pdf_viewer import pdf_viewer
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
@@ -41,8 +42,8 @@ load_dotenv(find_dotenv())
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
 # set logging
-logger = logging.getLogger('AI_assistant_feedback')
-logger.setLevel(logging.INFO)
+feedback_logger = logging.getLogger('AI_assistant_feedback')
+feedback_logger.setLevel(logging.INFO)
 
 # Check if the directory exists, if not create it
 log_dir = "logs"
@@ -50,15 +51,15 @@ if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
 # Create a file handler for the logger
-handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
-handler.setLevel(logging.INFO)
+feedback_handler = logging.FileHandler(os.path.join(log_dir, 'feedback.log'))
+feedback_handler.setLevel(logging.INFO)
 
 # Create a logging format
 formatter = logging.Formatter('%(asctime)s -  %(message)s')
-handler.setFormatter(formatter)  # Add the formatter to the handler
+feedback_handler.setFormatter(formatter)  # Add the formatter to the handler
 
 # Add the handler to the logger
-logger.addHandler(handler)
+feedback_logger.addHandler(feedback_handler)
 
 config = load_config()
 collection_name = config['VECTORDB']['collection_name']
@@ -137,7 +138,7 @@ def _submit_feedback(user_response, emoji=None):
         feedback_score = '+1'
     else:
         feedback_score = '-1'
-    logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
+    feedback_logger.info(f"Feedback_Score: {feedback_score}, Feedback_text: {user_response['text']}")
     return user_response
 
 
@@ -406,8 +407,9 @@ def handle_assistant_response(user_query):
                 if 'retrievals' in st.session_state:
                     context = st.session_state['retrievals']
                     display_context_in_pdf_viewer(context)
-            logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
-    except Exception as e:
+            feedback_logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
+    except NotFoundError as e:
+        print(f"Erreur sur  opensearch: {e}")
         st.error(f"La base de connaissance n'a pas été initialisée.\n\n"
                  f"Source: {e}")
 
