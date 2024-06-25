@@ -47,14 +47,15 @@ def main():
 
     with st.container():
         st.subheader("Autres options")
-        generate_summary = st.checkbox("Ajouter au sommaire", disabled=True)
+        generate_summary = st.checkbox("Générer le sommaire", disabled=True)
+        upload_only = st.checkbox("Enregistrement des documents uniquement")
 
     if st.button("Transmettre", disabled=disabled):
 
-        upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, restart_image_analysis, topic_name)
+        upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, restart_image_analysis, topic_name, upload_only)
 
 
-def upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, restart_image_analysis, topic_name):
+def upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, restart_image_analysis, topic_name, upload_only):
     file_paths = []
     if not os.path.exists(upload_directory):
         os.makedirs(upload_directory)
@@ -70,7 +71,8 @@ def upload_files(analyse_images, file_type, generate_summary, image_only, pdfs, 
     if analyse_images:
         image_docs = load_image(pdfs, metadata, restart_image_analysis)
         docs += image_docs
-    load_store(docs, collection_name=collection_name)
+    if not upload_only:
+        load_store(docs, collection_name=collection_name)
     if generate_summary:
         docs_li = docs_prepare(
             #input_files=file_paths,

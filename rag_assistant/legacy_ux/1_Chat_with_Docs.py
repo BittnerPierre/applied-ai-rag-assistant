@@ -432,11 +432,16 @@ def display_context_in_pdf_viewer(context):
         filename = first_metadata[0]
         pages = first_metadata[1]
         # show_retrievals = st.checkbox("Show PDFs")
-        with st.expander(f"Source: {filename}", expanded=True):
-            pdf_viewer(f"{upload_directory}/{filename}",
-                       height=400,
-                       pages_to_render=pages)
-
+        try:
+            with st.expander(f"Source: {filename}", expanded=True):
+                pdf_viewer(f"{upload_directory}/{filename}",
+                           height=400,
+                           pages_to_render=pages)
+        except FileNotFoundError as fnfe:
+            full_path = fnfe.filename
+            filename = os.path.basename(full_path)
+            print(f"Erreur sur l'affichage du PDF: {fnfe}")
+            st.error(f"Le fichier PDF '{filename}' est manquant.")
 
 def suggestion_clicked(question):
     st.session_state.user_suggested_question = question

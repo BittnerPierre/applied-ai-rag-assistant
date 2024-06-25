@@ -345,11 +345,16 @@ def handle_assistant_response(user_query):
                     filename = first_metadata[0]
                     pages = first_metadata[1]
                     #show_retrievals = st.checkbox("Show PDFs")
-                    with st.expander(f"Source: {filename}", expanded=True):
-
+                    try:
+                        with st.expander(f"Source: {filename}", expanded=True):
                             pdf_viewer(f"{upload_directory}/{filename}",
                                        height=400,
                                        pages_to_render=pages)
+                    except FileNotFoundError as fnfe:
+                        full_path = fnfe.filename
+                        filename = os.path.basename(full_path)
+                        print(f"Erreur sur l'affichage du PDF: {fnfe}")
+                        st.error(f"Le fichier PDF '{filename}' est manquant.")
 
             feedback_logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
     except NotFoundError as e:
