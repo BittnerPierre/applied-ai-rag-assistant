@@ -47,7 +47,7 @@ def main():
 
     with st.container():
         st.subheader("Autres options")
-        generate_summary = st.checkbox("Ajouter au sommaire")
+        generate_summary = st.checkbox("Ajouter au sommaire", disabled=True)
 
     if st.button("Transmettre", disabled=disabled):
 
