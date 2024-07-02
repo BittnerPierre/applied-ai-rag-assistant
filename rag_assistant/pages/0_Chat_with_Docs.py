@@ -334,13 +334,6 @@ def handle_assistant_response(user_query):
                                height=400,
                                pages_to_render=pages)
         logger.info(f"User Query: {user_query}, AI Response: {ai_response}")
-        
-        feedback = streamlit_feedback(
-            feedback_type="thumbs",
-            optional_text_label="[Optional] Est-ce que cette réponse vous convient?",
-            key=f"feedback_{session_id}_{len(msgs.messages)}",
-            on_submit=_submit_feedback
-        )
 
 def suggestion_clicked(question):
     session_id = get_session_id()
@@ -434,26 +427,36 @@ def main():
         avatars = {"human": "user", "ai": "assistant"}
         for i, msg in enumerate(msgs.messages):
             st.chat_message(avatars[msg.type]).write(msg.content)
-            #feedback_key = f"feedback_{session_id}_{len(msgs.messages)}_{int(time.time() * 1000)}"
-            feedback = streamlit_feedback(
-                feedback_type="thumbs",
-                optional_text_label="[Optional] Est-ce que cette réponse vous convient?",
-                key=f"feedback_{session_id}_{len(msgs.messages)}",
-                on_submit=_submit_feedback
-            )
-            if feedback:
-                st.success("Merci pour votre feedback!")
+            if msg.type == "ai":
+                feedback = streamlit_feedback(
+                    feedback_type="thumbs",
+                    optional_text_label="[Optional] Est-ce que cette réponse vous convient ?",
+                    key=f"feedback_{session_id}_{i+1}",
+                    on_submit= _submit_feedback
+                )
+                if feedback:
+                    st.success("Merci pour votre feedback!")
 
     if "user_suggested_question" in st.session_state:
         user_query = st.session_state.user_suggested_question
         st.session_state.pop("user_suggested_question")
         handle_assistant_response(user_query)
+        streamlit_feedback(
+            feedback_type="thumbs",
+            optional_text_label="[Optional] Est-ce que cette réponse vous convient ?",
+            key=f"feedback_{session_id}_{len(msgs.messages)}",
+        )
 
     if user_query := st.chat_input(placeholder="Pose moi tes questions!"):
         if session_id not in st.session_state.chat_titles or st.session_state.chat_titles[session_id] == session_id:
             title = generate_session_title(user_query)
             st.session_state.chat_titles[session_id] = title
         handle_assistant_response(user_query)
+        streamlit_feedback(
+            feedback_type="thumbs",
+            optional_text_label="[Optional] Est-ce que cette réponse vous convient ?",
+            key=f"feedback_{session_id}_{len(msgs.messages)}",
+        )
 
     
 
